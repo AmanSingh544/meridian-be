@@ -1,0 +1,470 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// TENANTS
+// ─────────────────────────────────────────────
+model Tenant {
+  id          String   @id @default(uuid()) @db.Uuid
+  slug        String   @unique
+  name        String
+  settings    Json     @default("{}")
+  branding    Json     @default("{}")
+  plan        String   @default("free")
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  users       User[]
+  tickets     Ticket[]
+  comments    Comment[]
+  attachments Attachment[]
+  kb_articles KbArticle[]
+  audit_logs  AuditLog[]
+  notifications Notification[]
+  sla_policies SlaPolicy[]
+  routing_rules RoutingRule[]
+  permission_overrides PermissionOverride[]
+  projects    Project[]
+  delivery_items DeliveryItem[]
+  onboarding_items OnboardingItem[]
+  roadmap_features RoadmapFeature[]
+  escalations Escalation[]
+  skills      Skill[]
+
+  @@map("tenants")
+}
+
+// ─────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenant_id     String   @db.Uuid
+  email         String   @unique
+  password_hash String
+  role          UserRole
+  first_name    String?
+  last_name     String?
+  avatar_url    String?
+  preferences   Json     @default("{}")
+  last_active_at DateTime? @db.Timestamptz(6)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant        Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  requester_tickets Ticket[] @relation("RequesterTickets")
+  assignee_tickets  Ticket[] @relation("AssigneeTickets")
+  comments      Comment[]
+  attachments   Attachment[]
+  notifications Notification[] @relation("NotificationUser")
+  audit_logs    AuditLog[]
+  permission_overrides PermissionOverride[]
+  user_skills   UserSkill[]
+  workloads     Workload[]
+
+  @@index([tenant_id, email])
+  @@index([tenant_id, role])
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  LEAD
+  AGENT
+  CLIENT_ADMIN
+  CLIENT_USER
+}
+
+// ─────────────────────────────────────────────
+// TICKETS (core entity)
+// ─────────────────────────────────────────────
+model Ticket {
+  id                  String      @id @default(uuid()) @db.Uuid
+  tenant_id           String      @db.Uuid
+  ticket_number       String      @unique
+  title               String
+  description         String?
+  status              TicketStatus @default(OPEN)
+  priority            TicketPriority @default(MEDIUM)
+  category            TicketCategory?
+  requester_id        String?     @db.Uuid
+  assignee_id         String?     @db.Uuid
+  sla_policy_id       String?     @db.Uuid
+  sla_deadline_at     DateTime?   @db.Timestamptz(6)
+  first_response_at   DateTime?   @db.Timestamptz(6)
+  resolved_at         DateTime?   @db.Timestamptz(6)
+  closed_at           DateTime?   @db.Timestamptz(6)
+  tags                String[]    @default([])
+  metadata            Json        @default("{}")
+  created_at          DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime    @updatedAt @db.Timestamptz(6)
+
+  tenant              Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  requester           User?       @relation("RequesterTickets", fields: [requester_id], references: [id])
+  assignee            User?       @relation("AssigneeTickets", fields: [assignee_id], references: [id])
+  comments            Comment[]
+  attachments         Attachment[]
+  escalations         Escalation[]
+
+  @@unique([tenant_id, ticket_number])
+  @@index([tenant_id, category])
+  @@index([tenant_id, status])
+  @@index([tenant_id, assignee_id])
+  @@index([tenant_id, sla_deadline_at])
+  @@map("tickets")
+}
+
+enum TicketStatus {
+  OPEN
+  ACKNOWLEDGED
+  IN_PROGRESS
+  PENDING
+  RESOLVED
+  CLOSED
+  ESCALATED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketCategory {
+  INCIDENT
+  BUG
+  FEATURE_REQUEST
+  QUESTION
+  SUPPORT
+  BILLING
+  TASK
+}
+
+// ─────────────────────────────────────────────
+// COMMENTS
+// ─────────────────────────────────────────────
+model Comment {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  ticket_id   String   @db.Uuid
+  author_id   String?  @db.Uuid
+  body        String
+  is_internal Boolean  @default(false)
+  parent_id   String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  ticket      Ticket   @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  author      User?    @relation(fields: [author_id], references: [id])
+  mentions    Json       @default("[]")
+  updated_at  DateTime   @updatedAt @db.Timestamptz(6)
+  parent      Comment?   @relation("CommentThread", fields: [parent_id], references: [id])
+  replies     Comment[]  @relation("CommentThread")
+  attachments Attachment[]
+
+  @@index([tenant_id, ticket_id])
+  @@map("comments")
+}
+
+// ─────────────────────────────────────────────
+// ATTACHMENTS
+// ─────────────────────────────────────────────
+model Attachment {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  ticket_id   String?  @db.Uuid
+  comment_id  String?  @db.Uuid
+  filename    String
+  mime_type   String?
+  size_bytes  Int?
+  storage_key String
+  uploaded_by String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  ticket      Ticket?  @relation(fields: [ticket_id], references: [id], onDelete: SetNull)
+  comment     Comment? @relation(fields: [comment_id], references: [id], onDelete: SetNull)
+  uploader    User?    @relation(fields: [uploaded_by], references: [id])
+
+  @@map("attachments")
+}
+
+// ─────────────────────────────────────────────
+// KNOWLEDGE BASE
+// ─────────────────────────────────────────────
+model KbArticle {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenant_id      String   @db.Uuid
+  category_id    String?  @db.Uuid
+  title          String
+  content        String
+  content_vector Unsupported("vector")?
+  helpful_count  Int      @default(0)
+  view_count     Int      @default(0)
+  status         String   @default("published")
+  published_at   DateTime? @db.Timestamptz(6)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant         Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id, status])
+  @@map("kb_articles")
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
+model Notification {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  user_id     String   @db.Uuid
+  type        String
+  title       String
+  body        String?
+  data        Json     @default("{}")
+  is_read     Boolean  @default(false)
+  read_at     DateTime? @db.Timestamptz(6)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user        User     @relation("NotificationUser", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id, user_id, is_read])
+  @@map("notifications")
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOGS
+// ─────────────────────────────────────────────
+model AuditLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenant_id     String   @db.Uuid
+  user_id       String?  @db.Uuid
+  action        String
+  resource_type String
+  resource_id   String?  @db.Uuid
+  changes       Json?
+  ip_address    String?
+  user_agent    String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant        Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user          User?    @relation(fields: [user_id], references: [id])
+
+  @@index([tenant_id, resource_type, resource_id])
+  @@index([tenant_id, created_at])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────
+// SLA POLICIES
+// ─────────────────────────────────────────────
+model SlaPolicy {
+  id                      String   @id @default(uuid()) @db.Uuid
+  tenant_id               String   @db.Uuid
+  name                    String
+  priority                TicketPriority
+  first_response_minutes  Int
+  resolution_minutes      Int
+  business_hours          Json
+  timezone                String   @default("UTC")
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant                  Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@map("sla_policies")
+}
+
+// ─────────────────────────────────────────────
+// PERMISSION OVERRIDES
+// ─────────────────────────────────────────────
+model PermissionOverride {
+  id          String           @id @default(uuid()) @db.Uuid
+  tenant_id   String           @db.Uuid
+  user_id     String           @db.Uuid
+  permission  String
+  type        OverrideType
+  granted_by  String?          @db.Uuid
+  created_at  DateTime         @default(now()) @db.Timestamptz(6)
+
+  tenant      Tenant           @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([tenant_id, user_id, permission])
+  @@map("permission_overrides")
+}
+
+enum OverrideType {
+  GRANT
+  REVOKE
+}
+
+// ─────────────────────────────────────────────
+// PROJECTS
+// ─────────────────────────────────────────────
+model Project {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  name        String
+  description String?
+  status      String   @default("active")
+  client_id   String?  @db.Uuid
+  health_score Int?    @default(100)
+  metadata    Json     @default("{}")
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@map("projects")
+}
+
+// ─────────────────────────────────────────────
+// DELIVERY BOARD
+// ─────────────────────────────────────────────
+model DeliveryItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  title       String
+  description String?
+  status      String   @default("backlog")
+  priority    String   @default("medium")
+  assignee_id String?  @db.Uuid
+  due_date    DateTime? @db.Timestamptz(6)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@map("delivery_items")
+}
+
+// ─────────────────────────────────────────────
+// ONBOARDING
+// ─────────────────────────────────────────────
+model OnboardingItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  title       String
+  description String?
+  status      String   @default("pending")
+  assignee_id String?  @db.Uuid
+  due_date    DateTime? @db.Timestamptz(6)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_items")
+}
+
+// ─────────────────────────────────────────────
+// ROADMAP
+// ─────────────────────────────────────────────
+model RoadmapFeature {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  title       String
+  description String?
+  status      String   @default("planned")
+  votes       Int      @default(0)
+  created_by  String?  @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@map("roadmap_features")
+}
+
+// ─────────────────────────────────────────────
+// ESCALATIONS
+// ─────────────────────────────────────────────
+model Escalation {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  ticket_id   String   @db.Uuid
+  reason      String
+  status      String   @default("open")
+  escalated_to String? @db.Uuid
+  resolved_at DateTime? @db.Timestamptz(6)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  ticket      Ticket   @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+
+  @@map("escalations")
+}
+
+// ─────────────────────────────────────────────
+// ROUTING RULES
+// ─────────────────────────────────────────────
+model RoutingRule {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  name        String
+  condition   Json
+  action      Json
+  priority    Int      @default(0)
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@map("routing_rules")
+}
+
+// ─────────────────────────────────────────────
+// SKILLS (Phase 2)
+// ─────────────────────────────────────────────
+model Skill {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  name        String
+  category    String?
+  description String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  user_skills UserSkill[]
+
+  @@map("skills")
+}
+
+model UserSkill {
+  id          String   @id @default(uuid()) @db.Uuid
+  user_id     String   @db.Uuid
+  skill_id    String   @db.Uuid
+  proficiency Int      @default(1) // 1-5
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  skill       Skill    @relation(fields: [skill_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, skill_id])
+  @@map("user_skills")
+}
+
+// ─────────────────────────────────────────────
+// WORKLOAD
+// ─────────────────────────────────────────────
+model Workload {
+  id            String   @id @default(uuid()) @db.Uuid
+  user_id       String   @db.Uuid
+  active_tickets Int     @default(0)
+  max_capacity  Int      @default(10)
+  availability  String   @default("available") // available, busy, away, offline
+  updated_at    DateTime @updatedAt @db.Timestamptz(6)
+
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("workloads")
+}

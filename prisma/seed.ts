@@ -1,0 +1,549 @@
+import { PrismaClient, TicketStatus, TicketPriority, TicketCategory, UserRole } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function main() {
+  console.log('🌱 Seeding database...');
+
+  // ─── Clean slate ───────────────────────────────────────────────────────────
+  await prisma.comment.deleteMany();
+  await prisma.ticket.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.tenant.deleteMany();
+
+  // ─── Tenants (from MOCK_ORGANIZATIONS) ─────────────────────────────────────
+  const tenants = await prisma.$transaction([
+    prisma.tenant.create({
+      data: {
+        id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        slug: '3sc-internal',
+        name: '3SC Internal',
+        plan: 'Enterprise',
+        settings: {},
+        branding: {},
+      },
+    }),
+    prisma.tenant.create({
+      data: {
+        id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+        slug: 'acme-corp',
+        name: 'Acme Corporation',
+        plan: 'Business',
+        settings: {},
+        branding: {},
+      },
+    }),
+    prisma.tenant.create({
+      data: {
+        id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13',
+        slug: 'techwave-io',
+        name: 'TechWave IO',
+        plan: 'Pro',
+        settings: {},
+        branding: {},
+      },
+    }),
+    prisma.tenant.create({
+      data: {
+        id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14',
+        slug: 'global-finance-group',
+        name: 'Global Finance Group',
+        plan: 'Enterprise',
+        settings: {},
+        branding: {},
+      },
+    }),
+    prisma.tenant.create({
+      data: {
+        id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15',
+        slug: 'apex-logistics',
+        name: 'Apex Logistics',
+        plan: 'Business',
+        settings: {},
+        branding: {},
+      },
+    }),
+  ]);
+
+  console.log(`✅ Created ${tenants.length} tenants`);
+
+  const tenantMap: Record<string, string> = {
+    'ORG-001': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    'ORG-002': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+    'ORG-003': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13',
+    'ORG-004': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14',
+    'ORG-006': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a15',
+  };
+
+  // ─── Users ─────────────────────────────────────────────────────────────────
+  const usersData = [
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b01',
+      tenant_id: tenantMap['ORG-001'],
+      email: 'alex.morgan@3sc.com',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.ADMIN,
+      first_name: 'Alex',
+      last_name: 'Morgan',
+      avatar_url: 'https://i.pravatar.cc/150?u=alex',
+      preferences: { theme: 'light', notifications: true },
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b02',
+      tenant_id: tenantMap['ORG-001'],
+      email: 'priya.sharma@3sc.com',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.LEAD,
+      first_name: 'Priya',
+      last_name: 'Sharma',
+      avatar_url: 'https://i.pravatar.cc/150?u=priya',
+      preferences: {},
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b03',
+      tenant_id: tenantMap['ORG-001'],
+      email: 'james.okafor@3sc.com',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.AGENT,
+      first_name: 'James',
+      last_name: 'Okafor',
+      avatar_url: 'https://i.pravatar.cc/150?u=james',
+      preferences: {},
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b04',
+      tenant_id: tenantMap['ORG-001'],
+      email: 'sara.chen@3sc.com',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.AGENT,
+      first_name: 'Sara',
+      last_name: 'Chen',
+      avatar_url: 'https://i.pravatar.cc/150?u=sara',
+      preferences: {},
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b05',
+      tenant_id: tenantMap['ORG-001'],
+      email: 'michael.reyes@3sc.com',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.AGENT,
+      first_name: 'Michael',
+      last_name: 'Reyes',
+      avatar_url: 'https://i.pravatar.cc/150?u=michael',
+      preferences: {},
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b06',
+      tenant_id: tenantMap['ORG-001'],
+      email: 'nina.patel@3sc.com',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.LEAD,
+      first_name: 'Nina',
+      last_name: 'Patel',
+      avatar_url: 'https://i.pravatar.cc/150?u=nina',
+      preferences: {},
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b08',
+      tenant_id: tenantMap['ORG-001'],
+      email: 'yuki.tanaka@3sc.com',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.AGENT,
+      first_name: 'Yuki',
+      last_name: 'Tanaka',
+      avatar_url: 'https://i.pravatar.cc/150?u=yuki',
+      preferences: {},
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b11',
+      tenant_id: tenantMap['ORG-002'],
+      email: 'david.wilson@acmecorp.com',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.CLIENT_ADMIN,
+      first_name: 'David',
+      last_name: 'Wilson',
+      avatar_url: 'https://i.pravatar.cc/150?u=david',
+      preferences: {},
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b12',
+      tenant_id: tenantMap['ORG-002'],
+      email: 'lucy.nguyen@acmecorp.com',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.CLIENT_USER,
+      first_name: 'Lucy',
+      last_name: 'Nguyen',
+      avatar_url: 'https://i.pravatar.cc/150?u=lucy',
+      preferences: {},
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b13',
+      tenant_id: tenantMap['ORG-003'],
+      email: 'ben.harper@techwave.io',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.CLIENT_ADMIN,
+      first_name: 'Ben',
+      last_name: 'Harper',
+      avatar_url: 'https://i.pravatar.cc/150?u=ben',
+      preferences: {},
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b14',
+      tenant_id: tenantMap['ORG-004'],
+      email: 'rachel.kim@globalfinance.com',
+      password_hash: '$2b$10$YourHashedPasswordHere',
+      role: UserRole.CLIENT_ADMIN,
+      first_name: 'Rachel',
+      last_name: 'Kim',
+      avatar_url: 'https://i.pravatar.cc/150?u=rachel',
+      preferences: {},
+    },
+  ];
+
+  for (const user of usersData) {
+    await prisma.user.create({ data: user as any });
+  }
+  console.log(`✅ Created ${usersData.length} users`);
+
+  const userMap: Record<string, string> = {
+    'USR-001': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b01',
+    'USR-002': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b02',
+    'USR-003': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b03',
+    'USR-004': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b04',
+    'USR-005': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b05',
+    'USR-006': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b06',
+    'USR-008': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b08',
+    'USR-101': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b11',
+    'USR-102': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b12',
+    'USR-103': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b13',
+    'USR-104': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b14',
+  };
+
+  // ─── Tickets ───────────────────────────────────────────────────────────────
+  const ticketsData = [
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c01',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_number: 'TKT-001',
+      title: 'Production database cluster unresponsive — all queries timing out',
+      description: `Our primary PostgreSQL cluster (us-east-1) stopped responding at 03:42 UTC. All read and write queries are timing out after 30 s. The application is returning 503 errors to all users.\n\nSteps already taken:\n- Restarted the read replicas — no improvement\n- Checked CloudWatch: CPU 98%, disk I/O queue length 4200\n- Application logs show "FATAL: remaining connection slots are reserved for non-replication superuser connections"\n\nWe have ~15,000 active users affected. This is a P0 incident.`,
+      status: TicketStatus.IN_PROGRESS,
+      priority: TicketPriority.URGENT,
+      category: TicketCategory.INCIDENT,
+      tags: ['database', 'postgres', 'production', 'outage'],
+      requester_id: userMap['USR-101'],
+      assignee_id: userMap['USR-002'],
+      created_at: new Date('2026-04-16T03:44:00Z'),
+      updated_at: new Date('2026-04-16T09:15:00Z'),
+      resolved_at: null,
+      closed_at: null,
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c02',
+      tenant_id: tenantMap['ORG-003'],
+      ticket_number: 'TKT-002',
+      title: 'Payment processing failing for all Stripe transactions — revenue impact',
+      description: `Since approximately 14:30 UTC, all Stripe payment intents are failing with error code "card_declined" even for known good test cards. This affects checkout, subscription renewals, and manual charges.\n\nStripe dashboard shows the API keys are valid. Our webhook endpoint is receiving events but the charge never succeeds. Error response: {"error": {"code": "card_declined", "decline_code": "generic_decline", "message": "Your card has been declined."}}.\n\nEstimated revenue impact: £4,200 per hour.`,
+      status: TicketStatus.ACKNOWLEDGED,
+      priority: TicketPriority.URGENT,
+      category: TicketCategory.BUG,
+      tags: ['payments', 'stripe', 'billing', 'revenue'],
+      requester_id: userMap['USR-103'],
+      assignee_id: userMap['USR-003'],
+      created_at: new Date('2026-04-16T14:32:00Z'),
+      updated_at: new Date('2026-04-16T15:10:00Z'),
+      resolved_at: null,
+      closed_at: null,
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c03',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_number: 'TKT-003',
+      title: 'SSO/SAML login broken for all Azure AD users after cert rotation',
+      description: `Following our certificate rotation on April 14th, all users authenticating via Azure AD SAML are receiving: "SAML signature validation failed — certificate thumbprint mismatch".\n\nUsers who use email/password login are unaffected. Roughly 340 users in our organisation cannot log in.\n\nWe updated the certificate in Azure AD but did not update the SP metadata on your side. Is there a way to upload the new IdP certificate through the admin panel?`,
+      status: TicketStatus.IN_PROGRESS,
+      priority: TicketPriority.HIGH,
+      category: TicketCategory.BUG,
+      tags: ['sso', 'saml', 'azure-ad', 'authentication'],
+      requester_id: userMap['USR-101'],
+      assignee_id: userMap['USR-004'],
+      created_at: new Date('2026-04-14T11:00:00Z'),
+      updated_at: new Date('2026-04-16T08:45:00Z'),
+      resolved_at: null,
+      closed_at: null,
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c04',
+      tenant_id: tenantMap['ORG-004'],
+      ticket_number: 'TKT-004',
+      title: 'API rate limiting kicking in at 20 req/s instead of contracted 200 req/s',
+      description: `Our integration is being rate-limited at 20 requests/second, but our Enterprise plan specifies 200 req/s. This is causing our real-time dashboard to fall significantly behind.\n\nWe are seeing HTTP 429 responses with: {"error": "rate_limit_exceeded", "limit": 20, "reset_at": "..."}. Our account ID is ACC-7821. Please investigate whether our rate limit tier is misconfigured on your end.`,
+      status: TicketStatus.OPEN,
+      priority: TicketPriority.HIGH,
+      category: TicketCategory.BUG,
+      tags: ['api', 'rate-limiting', 'enterprise', 'integration'],
+      requester_id: userMap['USR-104'],
+      assignee_id: null,
+      created_at: new Date('2026-04-16T09:00:00Z'),
+      updated_at: new Date('2026-04-16T09:00:00Z'),
+      resolved_at: null,
+      closed_at: null,
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c05',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_number: 'TKT-005',
+      title: 'Bulk data export stuck at 0% for exports > 10,000 rows',
+      description: `When exporting reports with more than 10,000 rows, the export job starts (shows "Processing…"), then freezes at 0% indefinitely. Smaller exports work fine.\n\nWe need to export ~85,000 records for our end-of-quarter audit. The job was triggered 3 hours ago and still shows 0%.`,
+      status: TicketStatus.IN_PROGRESS,
+      priority: TicketPriority.HIGH,
+      category: TicketCategory.BUG,
+      tags: ['export', 'reports', 'bug', 'data'],
+      requester_id: userMap['USR-102'],
+      assignee_id: userMap['USR-005'],
+      created_at: new Date('2026-04-15T09:00:00Z'),
+      updated_at: new Date('2026-04-16T07:30:00Z'),
+      resolved_at: null,
+      closed_at: null,
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c06',
+      tenant_id: tenantMap['ORG-003'],
+      ticket_number: 'TKT-006',
+      title: 'File attachments exceeding 8 MB silently fail — no error shown to user',
+      description: `When users attempt to attach files larger than 8 MB to a ticket, the upload spinner runs indefinitely with no error message. The attachment is never saved. This is a UX regression — previous behaviour showed a clear size-limit error.\n\nMax allowed per our plan is 25 MB per file. The silent failure is causing confusion.`,
+      status: TicketStatus.OPEN,
+      priority: TicketPriority.HIGH,
+      category: TicketCategory.BUG,
+      tags: ['attachments', 'uploads', 'ux', 'regression'],
+      requester_id: userMap['USR-103'],
+      assignee_id: userMap['USR-008'],
+      created_at: new Date('2026-04-16T10:20:00Z'),
+      updated_at: new Date('2026-04-16T11:00:00Z'),
+      resolved_at: null,
+      closed_at: null,
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c16',
+      tenant_id: tenantMap['ORG-003'],
+      ticket_number: 'TKT-016',
+      title: 'How do I export SLA compliance data to CSV for board reporting?',
+      description: `I need to produce a monthly SLA compliance report for our board meeting. I can see the charts on the analytics page but cannot find a CSV export button. Is this available in our plan (Business)?`,
+      status: TicketStatus.RESOLVED,
+      priority: TicketPriority.LOW,
+      category: TicketCategory.QUESTION,
+      tags: ['export', 'sla', 'reporting', 'csv'],
+      requester_id: userMap['USR-103'],
+      assignee_id: userMap['USR-003'],
+      created_at: new Date('2026-04-10T11:00:00Z'),
+      updated_at: new Date('2026-04-12T10:00:00Z'),
+      resolved_at: new Date('2026-04-12T10:00:00Z'),
+      closed_at: null,
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c18',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_number: 'TKT-018',
+      title: '2FA SMS codes not delivered to +44 UK numbers',
+      description: `Two-factor authentication SMS codes are not being delivered to UK phone numbers (+44 prefix). US and Canadian numbers work fine. Affected users cannot log in.`,
+      status: TicketStatus.RESOLVED,
+      priority: TicketPriority.HIGH,
+      category: TicketCategory.BUG,
+      tags: ['2fa', 'sms', 'authentication', 'uk'],
+      requester_id: userMap['USR-101'],
+      assignee_id: userMap['USR-004'],
+      created_at: new Date('2026-04-09T09:30:00Z'),
+      updated_at: new Date('2026-04-11T16:00:00Z'),
+      resolved_at: new Date('2026-04-11T16:00:00Z'),
+      closed_at: null,
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c20',
+      tenant_id: tenantMap['ORG-003'],
+      ticket_number: 'TKT-020',
+      title: 'Password reset link expiry too short — users unable to complete reset',
+      description: `Users who don't check their email promptly find that the password reset link has already expired. The current expiry appears to be 15 minutes. Industry standard is 1 hour.`,
+      status: TicketStatus.CLOSED,
+      priority: TicketPriority.LOW,
+      category: TicketCategory.BUG,
+      tags: ['password-reset', 'email', 'ux'],
+      requester_id: userMap['USR-103'],
+      assignee_id: userMap['USR-003'],
+      created_at: new Date('2026-03-19T09:00:00Z'),
+      updated_at: new Date('2026-03-25T10:00:00Z'),
+      resolved_at: new Date('2026-03-22T14:00:00Z'),
+      closed_at: new Date('2026-03-25T10:00:00Z'),
+    },
+  ];
+
+  for (const ticket of ticketsData) {
+    await prisma.ticket.create({ data: ticket as any });
+  }
+  console.log(`✅ Created ${ticketsData.length} tickets`);
+
+  // ─── Comments ──────────────────────────────────────────────────────────────
+  const commentsData = [
+    // TKT-001 comments
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d01',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c01',
+      author_id: userMap['USR-101'],
+      body: 'URGENT — we have 15,000 users completely locked out. This is impacting a live presentation for a major client. Please escalate immediately.',
+      is_internal: false,
+      mentions: [],
+      created_at: new Date('2026-04-16T03:46:00Z'),
+      updated_at: new Date('2026-04-16T03:46:00Z'),
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d02',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c01',
+      author_id: userMap['USR-002'],
+      body: 'Acknowledged. I have escalated this to our DB ops team and am joining your incident channel now. Initial analysis suggests connection pool exhaustion — can you confirm what change was deployed in the last 2 hours?',
+      is_internal: false,
+      mentions: [],
+      created_at: new Date('2026-04-16T03:52:00Z'),
+      updated_at: new Date('2026-04-16T03:52:00Z'),
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d03',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c01',
+      author_id: userMap['USR-002'],
+      body: '[INTERNAL] CloudWatch confirms connection count hit max_connections (500). Likely culprit is the new connection pool config deployed at 03:30 UTC. Checking with DevOps to roll back.\n\nAlso note: customer is in a live sales demo — priority above all else.',
+      is_internal: true,
+      mentions: ['USR-006'],
+      created_at: new Date('2026-04-16T03:55:00Z'),
+      updated_at: new Date('2026-04-16T03:55:00Z'),
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d04',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c01',
+      author_id: userMap['USR-101'],
+      body: 'We deployed a connection pool size change (from 50 to 200 per node) at 03:28 UTC. Rolling it back now on our side — should we coordinate?',
+      is_internal: false,
+      mentions: [],
+      created_at: new Date('2026-04-16T04:05:00Z'),
+      updated_at: new Date('2026-04-16T04:05:00Z'),
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d05',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c01',
+      author_id: userMap['USR-002'],
+      body: 'Yes — please hold your rollback for 5 minutes. We are applying a pgbouncer config patch on our end first. Will confirm when ready.',
+      is_internal: false,
+      mentions: [],
+      created_at: new Date('2026-04-16T04:10:00Z'),
+      updated_at: new Date('2026-04-16T04:10:00Z'),
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d06',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c01',
+      author_id: userMap['USR-002'],
+      body: 'pgbouncer patch applied. Connections are draining — we are seeing connection count drop from 498 to 320 and query latency recovering. Please proceed with your rollback now.',
+      is_internal: false,
+      mentions: [],
+      created_at: new Date('2026-04-16T04:22:00Z'),
+      updated_at: new Date('2026-04-16T04:22:00Z'),
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d07',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c01',
+      author_id: userMap['USR-101'],
+      body: "Application is responding normally again. Users can log in. The SLA breach on resolution is noted — we'll discuss during our quarterly review. Thank you for the rapid response.",
+      is_internal: false,
+      mentions: [],
+      created_at: new Date('2026-04-16T04:48:00Z'),
+      updated_at: new Date('2026-04-16T04:48:00Z'),
+    },
+    // TKT-002 comments
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d10',
+      tenant_id: tenantMap['ORG-003'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c02',
+      author_id: userMap['USR-103'],
+      body: 'Confirmed on staging and production. All card types fail. We have halted all marketing campaigns to avoid new sign-ups hitting this.',
+      is_internal: false,
+      mentions: [],
+      created_at: new Date('2026-04-16T14:40:00Z'),
+      updated_at: new Date('2026-04-16T14:40:00Z'),
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d11',
+      tenant_id: tenantMap['ORG-003'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c02',
+      author_id: userMap['USR-003'],
+      body: '[INTERNAL] Stripe webhook logs show a "restricted_key" scope error starting 14:28 UTC. This correlates with a Stripe API key rotation done by our infra team at 14:25. The new restricted key is likely missing the "charges:write" permission. Checking with Stripe dashboard.',
+      is_internal: true,
+      mentions: ['USR-002'],
+      created_at: new Date('2026-04-16T15:00:00Z'),
+      updated_at: new Date('2026-04-16T15:00:00Z'),
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d12',
+      tenant_id: tenantMap['ORG-003'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c02',
+      author_id: userMap['USR-003'],
+      body: 'We have identified the root cause. Our infrastructure team rotated the Stripe API key and the new key was created with insufficient permissions. We are issuing a corrected key now. Expect resolution within 30 minutes.',
+      is_internal: false,
+      mentions: [],
+      created_at: new Date('2026-04-16T15:15:00Z'),
+      updated_at: new Date('2026-04-16T15:15:00Z'),
+    },
+    // TKT-003 comments
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d20',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c03',
+      author_id: userMap['USR-101'],
+      body: 'To clarify — we rotated the IdP signing certificate on April 14th as part of our annual security review. We updated Azure AD but assumed the SP side would auto-refresh. 340 users are locked out of the platform.',
+      is_internal: false,
+      mentions: [],
+      created_at: new Date('2026-04-14T11:10:00Z'),
+      updated_at: new Date('2026-04-14T11:10:00Z'),
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d21',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c03',
+      author_id: userMap['USR-004'],
+      body: 'Understood. To resolve this you will need to provide the new IdP metadata XML. Please go to your Azure AD Enterprise Application → Single sign-on → Download Federation Metadata XML and attach it to this ticket.',
+      is_internal: false,
+      mentions: [],
+      created_at: new Date('2026-04-14T12:30:00Z'),
+      updated_at: new Date('2026-04-14T12:30:00Z'),
+    },
+    {
+      id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d23',
+      tenant_id: tenantMap['ORG-002'],
+      ticket_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c03',
+      author_id: userMap['USR-004'],
+      body: '[INTERNAL] Metadata uploaded and SP certificate updated in our IdP config. Testing with a test Azure AD account — SAML assertion is valid. Monitoring to confirm all 340 users can log in. Will update customer once confirmed.',
+      is_internal: true,
+      mentions: [],
+      created_at: new Date('2026-04-16T08:40:00Z'),
+      updated_at: new Date('2026-04-16T08:40:00Z'),
+    },
+  ];
+
+  for (const comment of commentsData) {
+    await prisma.comment.create({ data: comment as any });
+  }
+  console.log(`✅ Created ${commentsData.length} comments`);
+
+  console.log('🎉 Seed complete!');
+}
+
+main()
+  .catch((e) => {
+    console.error('Seed failed:', e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
