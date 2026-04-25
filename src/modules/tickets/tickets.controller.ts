@@ -24,10 +24,8 @@ import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { TicketTransitionDto } from './dto/ticket-transition.dto';
-import { TicketListQueryDto } from './dto/ticket-list-query.dto';
 import {
   PaginatedTicketResponseDto,
-  SingleTicketResponseDto,
   TicketDeleteResponseDto,
   TicketDto,
 } from './dto/ticket-response.dto';
@@ -40,103 +38,101 @@ export class TicketsController {
   constructor(private ticketsService: TicketsService) {}
 
   @Get()
-  @ApiOperation({
-    summary: 'List tickets',
-    description:
-      'Returns a paginated list of tickets scoped by the user\'s role and tenant.',
-  })
-  @ApiQuery({
-    name: 'tenant_id',
-    required: true,
-    description: 'Required. Tenant ID injected by the frontend.',
-    example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Paginated list of tickets',
-    type: PaginatedTicketResponseDto,
-  })
+  @ApiOperation({ summary: 'List tickets (paginated, filterable)' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'status', required: false, description: 'Repeatable. e.g. ?status=OPEN&status=IN_PROGRESS' })
+  @ApiQuery({ name: 'priority', required: false })
+  @ApiQuery({ name: 'category', required: false })
+  @ApiQuery({ name: 'assignee_id', required: false })
+  @ApiQuery({ name: 'requester_id', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'date_from', required: false })
+  @ApiQuery({ name: 'date_to', required: false })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'sort_by', required: false })
+  @ApiQuery({ name: 'sort_order', required: false, enum: ['asc', 'desc'] })
+  @ApiResponse({ status: 200, type: PaginatedTicketResponseDto })
   findAll(
     @Query('tenant_id') tenantId: string,
-    @Query('status') status?: string,
-    @Query('page') page: string = '1',
-    @Query('limit') limit: string = '25',
+    @Query('status') status?: string | string[],
+    @Query('priority') priority?: string | string[],
+    @Query('category') category?: string,
+    @Query('assignee_id') assignee_id?: string,
+    @Query('requester_id') requester_id?: string,
+    @Query('search') search?: string,
+    @Query('date_from') date_from?: string,
+    @Query('date_to') date_to?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '25',
+    @Query('sort_by') sort_by?: string,
+    @Query('sort_order') sort_order?: 'asc' | 'desc',
   ) {
     return this.ticketsService.findAll(tenantId, {
       status,
-      page: parseInt(page),
-      limit: parseInt(limit),
+      priority,
+      category,
+      assignee_id,
+      requester_id,
+      search,
+      date_from,
+      date_to,
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      sort_by,
+      sort_order,
     });
   }
 
   @Get('list')
-  @ApiOperation({
-    summary: 'List tickets (alias)',
-    description: 'Alias for GET /tickets with identical behaviour.',
-  })
-  @ApiQuery({
-    name: 'tenant_id',
-    required: true,
-    description: 'Required. Tenant ID injected by the frontend.',
-    example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Paginated list of tickets',
-    type: PaginatedTicketResponseDto,
-  })
+  @ApiOperation({ summary: 'List tickets — alias for GET /tickets' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200, type: PaginatedTicketResponseDto })
   findAllList(
     @Query('tenant_id') tenantId: string,
-    @Query('status') status?: string,
-    @Query('page') page: string = '1',
-    @Query('limit') limit: string = '25',
+    @Query('status') status?: string | string[],
+    @Query('priority') priority?: string | string[],
+    @Query('category') category?: string,
+    @Query('assignee_id') assignee_id?: string,
+    @Query('requester_id') requester_id?: string,
+    @Query('search') search?: string,
+    @Query('date_from') date_from?: string,
+    @Query('date_to') date_to?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '25',
+    @Query('sort_by') sort_by?: string,
+    @Query('sort_order') sort_order?: 'asc' | 'desc',
   ) {
     return this.ticketsService.findAll(tenantId, {
       status,
-      page: parseInt(page),
-      limit: parseInt(limit),
+      priority,
+      category,
+      assignee_id,
+      requester_id,
+      search,
+      date_from,
+      date_to,
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      sort_by,
+      sort_order,
     });
   }
 
   @Get(':id')
-  @ApiOperation({
-    summary: 'Get a single ticket',
-    description: 'Retrieve a ticket by its unique identifier.',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Ticket ID',
-    example: 'tkt_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiQuery({
-    name: 'tenant_id',
-    required: true,
-    description: 'Tenant ID injected by the frontend.',
-    example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Ticket found',
-    type: TicketDto,
-  })
+  @ApiOperation({ summary: 'Get a single ticket by ID' })
+  @ApiParam({ name: 'id', description: 'Ticket UUID or ticket_number (TKT-001)' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200, type: TicketDto })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
   findOne(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
     return this.ticketsService.findOne(id, tenantId);
   }
 
   @Post()
-  @ApiOperation({
-    summary: 'Create a new ticket',
-    description:
-      'Creates a new ticket scoped to the current user\'s tenant. Triggers SLA clock start and routing rules.',
-  })
+  @ApiOperation({ summary: 'Create a new ticket' })
   @ApiBody({ type: CreateTicketDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Ticket created successfully',
-    type: TicketDto,
-  })
-  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 201, type: TicketDto })
   create(
     @Body() dto: CreateTicketDto,
     @CurrentUser('tenantId') tenantId: string,
@@ -150,29 +146,11 @@ export class TicketsController {
   }
 
   @Patch(':id')
-  @ApiOperation({
-    summary: 'Update ticket fields',
-    description:
-      'Partial update of a ticket. Requires TICKET_EDIT or TICKET_ASSIGN permissions depending on fields changed.',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Ticket ID',
-    example: 'tkt_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiQuery({
-    name: 'tenant_id',
-    required: true,
-    description: 'Tenant ID injected by the frontend.',
-    example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
+  @ApiOperation({ summary: 'Partial-update ticket fields' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
   @ApiBody({ type: UpdateTicketDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Ticket updated',
-    type: TicketDto,
-  })
-  @ApiResponse({ status: 404, description: 'Ticket not found' })
+  @ApiResponse({ status: 200, type: TicketDto })
   update(
     @Param('id') id: string,
     @Body() dto: UpdateTicketDto,
@@ -185,27 +163,13 @@ export class TicketsController {
   @ApiOperation({
     summary: 'Transition ticket status',
     description:
-      'Changes a ticket\'s status following the state machine. Valid transitions: OPEN → ACKNOWLEDGED/IN_PROGRESS/CLOSED, ACKNOWLEDGED → IN_PROGRESS/CLOSED, IN_PROGRESS → RESOLVED/CLOSED, RESOLVED → CLOSED/OPEN, CLOSED → OPEN.',
+      'Valid transitions — OPEN→ACKNOWLEDGED|IN_PROGRESS|CLOSED, ACKNOWLEDGED→IN_PROGRESS|CLOSED, IN_PROGRESS→RESOLVED|CLOSED, RESOLVED→CLOSED|OPEN, CLOSED→OPEN',
   })
-  @ApiParam({
-    name: 'id',
-    description: 'Ticket ID',
-    example: 'tkt_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiQuery({
-    name: 'tenant_id',
-    required: true,
-    description: 'Tenant ID injected by the frontend.',
-    example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
   @ApiBody({ type: TicketTransitionDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Status transitioned successfully',
-    type: TicketDto,
-  })
-  @ApiResponse({ status: 404, description: 'Ticket not found' })
-  @ApiResponse({ status: 422, description: 'Invalid transition' })
+  @ApiResponse({ status: 200, type: TicketDto })
+  @ApiResponse({ status: 422, description: 'Invalid status transition' })
   transition(
     @Param('id') id: string,
     @Body() dto: TicketTransitionDto,
@@ -216,27 +180,10 @@ export class TicketsController {
   }
 
   @Delete(':id')
-  @ApiOperation({
-    summary: 'Delete a ticket',
-    description: 'Permanently deletes a ticket. Requires TICKET_DELETE permission.',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Ticket ID',
-    example: 'tkt_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiQuery({
-    name: 'tenant_id',
-    required: true,
-    description: 'Tenant ID injected by the frontend.',
-    example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Ticket deleted',
-    type: TicketDeleteResponseDto,
-  })
-  @ApiResponse({ status: 404, description: 'Ticket not found' })
+  @ApiOperation({ summary: 'Delete a ticket (requires TICKET_DELETE permission)' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200, type: TicketDeleteResponseDto })
   remove(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
     return this.ticketsService.remove(id, tenantId);
   }

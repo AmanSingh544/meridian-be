@@ -4,6 +4,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
+  ApiQuery,
   ApiBody,
   ApiCookieAuth,
 } from '@nestjs/swagger';
@@ -19,34 +20,64 @@ export class SlaController {
   constructor(private slaService: SlaService) {}
 
   @Get('policies')
-  @ApiOperation({ summary: 'List SLA policies' })
+  @ApiOperation({ summary: 'List SLA policies for a tenant' })
+  @ApiQuery({ name: 'tenant_id', required: true })
   @ApiResponse({ status: 200, type: [SlaPolicyResponseDto] })
-  findAll() {
-    return this.slaService.findAll();
+  findAll(@Query('tenant_id') tenantId: string) {
+    return this.slaService.findAll(tenantId);
+  }
+
+  @Get('policies/:id')
+  @ApiOperation({ summary: 'Get a single SLA policy' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200, type: SlaPolicyResponseDto })
+  findOne(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
+    return this.slaService.findOne(id, tenantId);
   }
 
   @Post('policies')
-  @ApiOperation({ summary: 'Create SLA policy' })
+  @ApiOperation({ summary: 'Create an SLA policy' })
+  @ApiQuery({ name: 'tenant_id', required: true })
   @ApiBody({ type: CreateSlaPolicyDto })
   @ApiResponse({ status: 201, type: SlaPolicyResponseDto })
-  create(@Body() dto: CreateSlaPolicyDto) {
-    return this.slaService.create(dto);
+  create(@Query('tenant_id') tenantId: string, @Body() dto: CreateSlaPolicyDto) {
+    return this.slaService.create(tenantId, dto as any);
   }
 
   @Patch('policies/:id')
-  @ApiOperation({ summary: 'Update SLA policy' })
-  @ApiParam({ name: 'id', example: 'sla_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
+  @ApiOperation({ summary: 'Update an SLA policy' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
   @ApiBody({ type: UpdateSlaPolicyDto })
   @ApiResponse({ status: 200, type: SlaPolicyResponseDto })
-  update(@Param('id') id: string, @Body() dto: UpdateSlaPolicyDto) {
-    return this.slaService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Query('tenant_id') tenantId: string,
+    @Body() dto: UpdateSlaPolicyDto,
+  ) {
+    return this.slaService.update(id, tenantId, dto);
   }
 
   @Delete('policies/:id')
-  @ApiOperation({ summary: 'Delete SLA policy' })
-  @ApiParam({ name: 'id', example: 'sla_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
-  @ApiResponse({ status: 204, description: 'Deleted' })
-  remove(@Param('id') id: string) {
-    return this.slaService.remove(id);
+  @ApiOperation({ summary: 'Delete an SLA policy' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200 })
+  remove(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
+    return this.slaService.remove(id, tenantId);
+  }
+
+  @Post('tickets/:ticketId/assign')
+  @ApiOperation({ summary: 'Assign an SLA policy to a ticket (computes deadline)' })
+  @ApiParam({ name: 'ticketId' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200 })
+  assignToTicket(
+    @Param('ticketId') ticketId: string,
+    @Query('tenant_id') tenantId: string,
+    @Body() dto: { policy_id: string },
+  ) {
+    return this.slaService.assignToTicket(ticketId, tenantId, dto.policy_id);
   }
 }

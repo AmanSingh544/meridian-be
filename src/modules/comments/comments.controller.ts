@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -20,10 +22,6 @@ import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator';
 import { CommentsService } from './comments.service';
 import { CreateCommentDto } from './dto/create-comment.dto';
-import {
-  CommentsListResponseDto,
-  SingleCommentResponseDto,
-} from './dto/comment-response.dto';
 
 @ApiTags('Comments')
 @ApiCookieAuth('access_token')
@@ -36,57 +34,33 @@ export class CommentsController {
   @ApiOperation({
     summary: 'Get comments for a ticket',
     description:
-      'Returns all comments on a ticket. CLIENT_USER / CLIENT_ADMIN see only public comments; AGENT / LEAD / ADMIN see internal notes as well.',
+      'Returns all top-level comments with nested replies. CLIENT_* users only see public comments; AGENT+ see internal notes too.',
   })
-  @ApiParam({
-    name: 'ticketId',
-    description: 'Ticket ID',
-    example: 'tkt_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiQuery({
-    name: 'tenant_id',
-    required: true,
-    description: 'Tenant ID injected by the frontend.',
-    example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'List of comments',
-    type: CommentsListResponseDto,
-  })
-  @ApiResponse({ status: 404, description: 'Ticket not found' })
+  @ApiParam({ name: 'ticketId' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200, description: 'List of comments' })
   findByTicket(
     @Param('ticketId') ticketId: string,
     @Query('tenant_id') tenantId: string,
+    @CurrentUser('role') role: string,
   ) {
-    return this.commentsService.findByTicket(ticketId, tenantId);
+    const includeInternal = ['ADMIN', 'LEAD', 'AGENT'].includes(role);
+    return this.commentsService.findByTicket(ticketId, tenantId, {
+      includeInternal,
+    });
   }
 
   @Post('tickets/:ticketId/comments')
   @ApiOperation({
-    summary: 'Create a comment on a ticket',
+    summary: 'Add a comment to a ticket (path-param style)',
     description:
-      'Adds a new comment. Requires COMMENT_CREATE. Internal notes (is_internal=true) require COMMENT_INTERNAL.',
+      'is_internal=true requires COMMENT_INTERNAL permission. parent_id enables threading.',
   })
-  @ApiParam({
-    name: 'ticketId',
-    description: 'Ticket ID',
-    example: 'tkt_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
-  @ApiQuery({
-    name: 'tenant_id',
-    required: true,
-    description: 'Tenant ID injected by the frontend.',
-    example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
+  @ApiParam({ name: 'ticketId' })
+  @ApiQuery({ name: 'tenant_id', required: true })
   @ApiBody({ type: CreateCommentDto })
-  @ApiResponse({
-    status: 201,
-    description: 'Comment created',
-    type: SingleCommentResponseDto,
-  })
-  @ApiResponse({ status: 404, description: 'Ticket or parent comment not found' })
-  create(
+  @ApiResponse({ status: 201, description: 'Comment created' })
+  createByPath(
     @Param('ticketId') ticketId: string,
     @Body() dto: CreateCommentDto,
     @Query('tenant_id') tenantId: string,
@@ -98,5 +72,56 @@ export class CommentsController {
       tenant_id: tenantId,
       author_id: userId,
     });
+  }
+
+  @Post('comments')
+  @ApiOperation({
+    summary: 'Add a comment to a ticket (body style — frontend compatible)',
+    description:
+      'Accepts ticket_id/ticketId, message/content/body, isInternal/is_internal, parent_id/parentId.',
+  })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiBody({ type: CreateCommentDto })
+  @ApiResponse({ status: 201, description: 'Comment created' })
+  create(
+    @Body() dto: CreateCommentDto,
+    @Query('tenant_id') tenantId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    return this.commentsService.create({
+      ...dto,
+      tenant_id: tenantId,
+      author_id: userId,
+    });
+  }
+
+  @Patch('comments/:id')
+  @ApiOperation({ summary: 'Edit a comment body (own comment or ADMIN/LEAD)' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200, description: 'Comment updated' })
+  update(
+    @Param('id') id: string,
+    @Body() dto: { body?: string; message?: string; content?: string },
+    @Query('tenant_id') tenantId: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    const text = dto.body ?? dto.message ?? dto.content ?? '';
+    return this.commentsService.update(id, tenantId, userId, role, text);
+  }
+
+  @Delete('comments/:id')
+  @ApiOperation({ summary: 'Delete a comment (own or ADMIN/LEAD)' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200, description: 'Comment deleted' })
+  remove(
+    @Param('id') id: string,
+    @Query('tenant_id') tenantId: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.commentsService.remove(id, tenantId, userId, role);
   }
 }

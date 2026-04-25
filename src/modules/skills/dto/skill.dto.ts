@@ -17,10 +17,30 @@ export class CreateSkillDto {
   description?: string;
 }
 
+export class UserSkillEntryDto {
+  @ApiProperty({ example: 'skill_01' })
+  @IsString()
+  skill_id: string;
+
+  @ApiPropertyOptional({ example: 3 })
+  @IsOptional()
+  proficiency?: number;
+
+  @ApiPropertyOptional({ example: 'EXPERT', enum: ['BEGINNER', 'INTERMEDIATE', 'EXPERT'] })
+  @IsOptional()
+  @IsString()
+  level?: string;
+}
+
 export class UpdateUserSkillsDto {
-  @ApiProperty({ example: ['skill_01', 'skill_02'], type: [String] })
+  @ApiPropertyOptional({ example: ['skill_01', 'skill_02'], type: [String], description: 'Legacy: array of skill IDs' })
+  @IsOptional()
   @IsString({ each: true })
-  skill_ids: string[];
+  skill_ids?: string[];
+
+  @ApiPropertyOptional({ description: 'Preferred: array of skill objects with proficiency/level', type: [UserSkillEntryDto] })
+  @IsOptional()
+  skills?: UserSkillEntryDto[];
 }
 
 export class SkillResponseDto {

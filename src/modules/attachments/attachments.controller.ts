@@ -1,12 +1,14 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Query, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
   ApiBody,
+  ApiQuery,
   ApiCookieAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
+import { CurrentUser } from '../../shared/decorators/current-user.decorator';
 import { AttachmentsService } from './attachments.service';
 import {
   CreateAttachmentDto,
@@ -24,15 +26,25 @@ export class AttachmentsController {
   constructor(private attachmentsService: AttachmentsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create attachment metadata' })
+  @ApiOperation({ summary: 'Register attachment metadata (direct/local upload flow)' })
+  @ApiQuery({ name: 'tenant_id', required: false, description: 'Fallback — tenant is normally taken from JWT' })
   @ApiBody({ type: CreateAttachmentDto })
   @ApiResponse({ status: 201, type: AttachmentResponseDto })
-  create(@Body() dto: CreateAttachmentDto) {
-    return this.attachmentsService.create(dto);
+  create(
+    @Body() dto: CreateAttachmentDto,
+    @CurrentUser('tenantId') jwtTenantId: string,
+    @CurrentUser('userId') userId: string,
+    @Query('tenant_id') queryTenantId?: string,
+  ) {
+    return this.attachmentsService.create({
+      ...dto,
+      tenant_id: jwtTenantId ?? queryTenantId,
+      uploaded_by: userId,
+    });
   }
 
   @Post('presign')
-  @ApiOperation({ summary: 'Get presigned upload URL' })
+  @ApiOperation({ summary: 'Get a presigned URL for direct browser upload' })
   @ApiBody({ type: PresignUploadDto })
   @ApiResponse({ status: 200, type: PresignedUploadResponseDto })
   presign(@Body() dto: PresignUploadDto) {
@@ -40,10 +52,13 @@ export class AttachmentsController {
   }
 
   @Post('confirm')
-  @ApiOperation({ summary: 'Confirm completed upload' })
+  @ApiOperation({ summary: 'Confirm a completed presigned upload and persist the record' })
   @ApiBody({ type: ConfirmUploadDto })
   @ApiResponse({ status: 200, type: AttachmentResponseDto })
-  confirm(@Body() dto: ConfirmUploadDto) {
-    return this.attachmentsService.confirm(dto);
+  confirm(
+    @Body() dto: ConfirmUploadDto,
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.attachmentsService.confirm({ ...dto, tenant_id: tenantId });
   }
 }

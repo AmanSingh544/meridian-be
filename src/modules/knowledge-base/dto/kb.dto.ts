@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean, IsArray, IsInt } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateKbArticleDto {
@@ -10,7 +10,12 @@ export class CreateKbArticleDto {
   @IsString()
   content: string;
 
-  @ApiPropertyOptional({ example: 'KBC-001' })
+  @ApiPropertyOptional({ example: 'Step-by-step guide for configuring Azure AD SAML SSO...' })
+  @IsOptional()
+  @IsString()
+  excerpt?: string;
+
+  @ApiPropertyOptional({ example: 'auth-sso' })
   @IsOptional()
   @IsString()
   category_id?: string;
@@ -24,6 +29,11 @@ export class CreateKbArticleDto {
   @IsOptional()
   @IsBoolean()
   is_published?: boolean;
+
+  @ApiPropertyOptional({ example: 'published', enum: ['draft', 'published', 'archived'] })
+  @IsOptional()
+  @IsString()
+  status?: string;
 }
 
 export class UpdateKbArticleDto {
@@ -37,7 +47,12 @@ export class UpdateKbArticleDto {
   @IsString()
   content?: string;
 
-  @ApiPropertyOptional({ example: 'KBC-002' })
+  @ApiPropertyOptional({ example: 'Updated excerpt...' })
+  @IsOptional()
+  @IsString()
+  excerpt?: string;
+
+  @ApiPropertyOptional({ example: 'auth-sso' })
   @IsOptional()
   @IsString()
   category_id?: string;
@@ -51,21 +66,17 @@ export class UpdateKbArticleDto {
   @IsOptional()
   @IsBoolean()
   is_published?: boolean;
-}
 
-export class KbSearchQueryDto {
-  @ApiProperty({ example: 'azure sso' })
-  @IsString()
-  query: string;
-
-  @ApiPropertyOptional({ example: 10 })
+  @ApiPropertyOptional({ example: 'published', enum: ['draft', 'published', 'archived'] })
   @IsOptional()
-  @IsInt()
-  limit?: number;
+  @IsString()
+  status?: string;
 }
+
+// ── Response DTOs (match KBArticle / KBCategory / KBSearchResult frontend types) ──
 
 export class KbArticleResponseDto {
-  @ApiProperty({ example: 'kb_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
+  @ApiProperty({ example: 'a1b2c3d4-...' })
   id: string;
 
   @ApiProperty({ example: 'How to configure Azure AD SAML SSO' })
@@ -74,23 +85,32 @@ export class KbArticleResponseDto {
   @ApiProperty({ example: '# Full markdown content...' })
   content: string;
 
-  @ApiProperty({ example: 'azure-ad-saml-sso' })
+  @ApiProperty({ example: 'Step-by-step guide for configuring Azure AD SAML SSO...' })
+  excerpt: string;
+
+  @ApiProperty({ example: 'how-to-configure-azure-ad-saml-sso' })
   slug: string;
 
-  @ApiProperty({ example: 'kbc_01HZX8K7YV7QNSQJQ5ZQFJ9K3M', nullable: true })
-  category_id: string | null;
+  @ApiProperty({ example: 'auth-sso', nullable: true })
+  categoryId: string | null;
 
   @ApiProperty({ example: ['sso', 'azure-ad'], type: [String] })
   tags: string[];
 
+  @ApiProperty({ example: null, nullable: true })
+  authorId: string | null;
+
   @ApiProperty({ example: true })
-  is_published: boolean;
+  isPublished: boolean;
 
   @ApiProperty({ example: 428 })
-  view_count: number;
+  viewCount: number;
 
   @ApiProperty({ example: 312 })
-  helpful_count: number;
+  helpfulCount: number;
+
+  @ApiProperty({ example: [], type: [String] })
+  relatedArticleIds: string[];
 
   @ApiProperty({ example: '2025-06-01T00:00:00Z' })
   created_at: string;
@@ -100,17 +120,17 @@ export class KbArticleResponseDto {
 }
 
 export class KbCategoryResponseDto {
-  @ApiProperty({ example: 'kbc_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
+  @ApiProperty({ example: 'auth-sso' })
   id: string;
 
-  @ApiProperty({ example: 'Authentication & SSO' })
+  @ApiProperty({ example: 'auth-sso' })
   name: string;
 
   @ApiProperty({ example: 'auth-sso' })
   slug: string;
 
   @ApiProperty({ example: 3 })
-  article_count: number;
+  articleCount: number;
 }
 
 export class KbSearchResultDto {

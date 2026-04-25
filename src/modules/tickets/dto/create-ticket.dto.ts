@@ -1,11 +1,11 @@
-import { IsString, IsOptional, IsEnum, IsArray, IsNumber } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsOptional, IsEnum, IsArray, IsObject } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum TicketPriority {
   LOW = 'LOW',
   MEDIUM = 'MEDIUM',
   HIGH = 'HIGH',
-  CRITICAL = 'CRITICAL',
+  URGENT = 'URGENT',
 }
 
 export enum TicketCategory {
@@ -19,66 +19,52 @@ export enum TicketCategory {
 }
 
 export class CreateTicketDto {
-  @ApiProperty({
-    description: 'Ticket title',
-    example: 'SSO login broken after Azure AD certificate renewal',
-  })
+  @ApiProperty({ example: 'SSO login broken after Azure AD certificate renewal' })
   @IsString()
   title: string;
 
-  @ApiProperty({
-    description: 'Detailed description of the issue',
-    example: 'Full description text...',
-    required: false,
-  })
+  @ApiPropertyOptional({ example: 'Full description text...' })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiProperty({
-    description: 'Ticket priority',
-    enum: TicketPriority,
-    example: TicketPriority.CRITICAL,
-  })
+  @ApiProperty({ enum: TicketPriority, example: TicketPriority.HIGH })
   @IsEnum(TicketPriority)
   priority: TicketPriority;
 
-  @ApiProperty({
-    description: 'Ticket category',
-    enum: TicketCategory,
-    example: TicketCategory.INCIDENT,
-  })
+  @ApiProperty({ enum: TicketCategory, example: TicketCategory.INCIDENT })
   @IsEnum(TicketCategory)
   category: TicketCategory;
 
-  @ApiProperty({
-    description: 'Tags for categorization and search',
-    example: ['sso', 'azure-ad', 'saml'],
-    type: [String],
-    required: false,
-  })
+  @ApiPropertyOptional({ example: ['sso', 'azure-ad', 'saml'], type: [String] })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
 
-  @ApiProperty({
-    description: 'Associated project ID',
-    example: 'prj_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-    required: false,
-  })
+  @ApiPropertyOptional({ example: 'usr-002' })
+  @IsOptional()
+  @IsString()
+  assignee_id?: string;
+
+  @ApiPropertyOptional({ example: ['att-001'], type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  attachment_ids?: string[];
+
+  @ApiPropertyOptional({ example: 'UAT' })
+  @IsOptional()
+  @IsString()
+  environment?: string;
+
+  @ApiPropertyOptional({ example: '406f6000-2159-47cd-a1b1-46b2b8005784' })
   @IsOptional()
   @IsString()
   project_id?: string;
 
-  @ApiProperty({
-    description: 'Attachment IDs to associate with the ticket (pre-uploaded via POST /attachments)',
-    example: [1001, 1002],
-    type: [Number],
-    required: false,
-  })
+  @ApiPropertyOptional({ example: {} })
   @IsOptional()
-  @IsArray()
-  @IsNumber({}, { each: true })
-  attachment_ids?: number[];
+  @IsObject()
+  metadata?: Record<string, any>;
 }

@@ -5,85 +5,75 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 export class OrganizationsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(page: number, pageSize: number) {
-    const skip = (page - 1) * pageSize;
+  private formatOrg(org: any) {
+    return {
+      id: org.id,
+      slug: org.slug,
+      name: org.name,
+      plan: org.plan,
+      settings: org.settings,
+      branding: org.branding,
+      created_at: org.created_at,
+      user_count: org._count?.users ?? 0,
+      ticket_count: org._count?.tickets ?? 0,
+    };
+  }
+
+  async findAll(page: number, limit: number, search?: string) {
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { slug: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.tenant.findMany({
-        skip,
-        take: pageSize,
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
         orderBy: { created_at: 'desc' },
-        include: {
-          _count: {
-            select: {
-              users: true,
-              tickets: true,
-            },
-          },
-        },
+        include: { _count: { select: { users: true, tickets: true } } },
       }),
-      this.prisma.tenant.count(),
+      this.prisma.tenant.count({ where }),
     ]);
 
-    const formatted = data.map((org) => ({
-      ...org,
-      user_count: org._count.users,
-      ticket_count: org._count.tickets,
-      _count: undefined,
-    }));
-
     return {
-      data: formatted,
+      data: data.map(this.formatOrg),
       page,
-      page_size: pageSize,
+      page_size: limit,
       total,
-      total_pages: Math.ceil(total / pageSize),
+      total_pages: Math.ceil(total / limit),
     };
   }
 
   async findOne(id: string) {
     const org = await this.prisma.tenant.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: {
-            users: true,
-            tickets: true,
-          },
-        },
-      },
+      include: { _count: { select: { users: true, tickets: true } } },
     });
-
     if (!org) throw new NotFoundException('Organization not found');
-
-    return {
-      data: {
-        ...org,
-        user_count: org._count.users,
-        ticket_count: org._count.tickets,
-        _count: undefined,
-      },
-    };
+    return { data: this.formatOrg(org) };
   }
 
   async update(id: string, dto: any) {
-    const org = await this.prisma.tenant.findUnique({
-      where: { id },
-      select: { id: true },
-    });
+    const org = await this.prisma.tenant.findUnique({ where: { id }, select: { id: true } });
     if (!org) throw new NotFoundException('Organization not found');
+
+    const updateData: any = {};
+    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.slug !== undefined) updateData.slug = dto.slug;
+    if (dto.plan !== undefined) updateData.plan = dto.plan;
+    if (dto.settings !== undefined) updateData.settings = dto.settings;
+    if (dto.branding !== undefined) updateData.branding = dto.branding;
 
     const updated = await this.prisma.tenant.update({
       where: { id },
-      data: {
-        name: dto.name,
-        slug: dto.slug,
-        plan: dto.plan,
-        settings: dto.settings,
-        branding: dto.branding,
-      },
+      data: updateData,
+      include: { _count: { select: { users: true, tickets: true } } },
     });
 
-    return { data: updated };
+    return { data: this.formatOrg(updated) };
   }
 }

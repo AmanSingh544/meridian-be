@@ -5,23 +5,40 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 export class RoutingRulesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll() {
-    const data = await this.prisma.routingRule.findMany({ orderBy: { priority: 'asc' } });
+  async findAll(tenantId: string) {
+    const data = await this.prisma.routingRule.findMany({
+      where: { tenant_id: tenantId },
+      orderBy: { priority: 'asc' },
+    });
     return { data };
   }
 
-  async create(dto: any) {
-    return this.prisma.routingRule.create({ data: dto });
+  async create(tenantId: string, dto: any) {
+    const rule = await this.prisma.routingRule.create({
+      data: { ...dto, tenant_id: tenantId },
+    });
+    return { data: rule };
   }
 
-  async update(id: string, dto: any) {
-    const rule = await this.prisma.routingRule.findUnique({ where: { id } });
+  async update(id: string, tenantId: string, dto: any) {
+    const rule = await this.prisma.routingRule.findFirst({ where: { id, tenant_id: tenantId } });
     if (!rule) throw new NotFoundException('Routing rule not found');
-    return this.prisma.routingRule.update({ where: { id }, data: dto });
+
+    const updateData: any = {};
+    if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.condition !== undefined) updateData.condition = dto.condition;
+    if (dto.action !== undefined) updateData.action = dto.action;
+    if (dto.priority !== undefined) updateData.priority = dto.priority;
+    if (dto.is_active !== undefined) updateData.is_active = dto.is_active;
+
+    const updated = await this.prisma.routingRule.update({ where: { id }, data: updateData });
+    return { data: updated };
   }
 
-  async remove(id: string) {
+  async remove(id: string, tenantId: string) {
+    const rule = await this.prisma.routingRule.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!rule) throw new NotFoundException('Routing rule not found');
     await this.prisma.routingRule.delete({ where: { id } });
-    return { message: 'Routing rule deleted' };
+    return { success: true, message: 'Routing rule deleted' };
   }
 }

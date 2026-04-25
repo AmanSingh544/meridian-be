@@ -3,54 +3,38 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { TicketPriority, TicketCategory } from './create-ticket.dto';
 
 export class UpdateTicketDto {
-  @ApiPropertyOptional({
-    description: 'Updated ticket title',
-    example: 'Updated title',
-  })
+  @ApiPropertyOptional({ description: 'Updated ticket title', example: 'Updated title' })
   @IsOptional()
   @IsString()
   title?: string;
 
-  @ApiPropertyOptional({
-    description: 'Updated description',
-    example: 'Updated description',
-  })
+  @ApiPropertyOptional({ description: 'Updated description', example: 'Updated description' })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({
-    description: 'Updated priority',
-    enum: TicketPriority,
-    example: TicketPriority.HIGH,
-  })
+  @ApiPropertyOptional({ enum: TicketPriority, example: TicketPriority.HIGH })
   @IsOptional()
   @IsEnum(TicketPriority)
   priority?: TicketPriority;
 
-  @ApiPropertyOptional({
-    description: 'Updated category',
-    enum: TicketCategory,
-    example: TicketCategory.BUG,
-  })
+  @ApiPropertyOptional({ enum: TicketCategory, example: TicketCategory.BUG })
   @IsOptional()
   @IsEnum(TicketCategory)
   category?: TicketCategory;
 
-  @ApiPropertyOptional({
-    description: 'Updated tags',
-    example: ['sso', 'updated-tag'],
-    type: [String],
-  })
+  @ApiPropertyOptional({ example: ['sso', 'updated-tag'], type: [String] })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
 
-  @ApiPropertyOptional({
-    description: 'Reassign ticket to a different user',
-    example: 'usr_01HZX8K7YV7QNSQJQ5ZQFJ9K3M',
-  })
+  @ApiPropertyOptional({ description: 'Reassign ticket to a different user', example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380b02' })
+  @IsOptional()
+  @IsString()
+  assignee_id?: string;
+
+  @ApiPropertyOptional({ description: 'Alias — frontend sends assignedTo which interceptor converts to assigned_to' })
   @IsOptional()
   @IsString()
   assigned_to?: string;

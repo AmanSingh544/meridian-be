@@ -14,6 +14,11 @@ export class CreateAttachmentDto {
   @IsString()
   file_path: string;
 
+  @ApiPropertyOptional({ example: 'tkt_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
+  @IsOptional()
+  @IsString()
+  ticket_id?: string;
+
   @ApiPropertyOptional({ example: {} })
   @IsOptional()
   @IsObject()
@@ -57,8 +62,8 @@ export class AttachmentResponseDto {
   @ApiProperty({ example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
   tenant_id: string;
 
-  @ApiProperty({ example: {} })
-  metadata: Record<string, any>;
+  @ApiPropertyOptional({ example: 'tkt_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
+  ticket_id?: string;
 
   @ApiProperty({ example: '2026-04-16T10:00:00Z' })
   created_at: string;

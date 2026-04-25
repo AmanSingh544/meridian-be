@@ -2,202 +2,374 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 
-export type TaskType = 'classify' | 'summarize' | 'reply' | 'route' | 'embed' | 'health_analysis' | 'priority_score';
-export type BudgetTier = 'economy' | 'standard' | 'premium';
+// Models — primary + fallback chain (all free tier on OpenRouter)
+const MODEL_ANALYTICAL = 'nvidia/nemotron-3-super-120b-a12b:free'; // classify, summarize, route, analysis
+const MODEL_GENERATIVE = 'openai/gpt-oss-120b:free';              // reply generation, KB draft
+const MODEL_EMBED = 'nvidia/llama-nemotron-embed-vl-1b-v2:free'; // embeddings
 
-interface ProviderConfig {
-  name: string;
-  client: any;
-  costPer1kTokens: number;
-  qualityScore: number;
-  latencyMs: number;
-  model: string;
-}
+// Fallback chain tried in order when primary is unavailable (503/402/429 etc.)
+const GENERATIVE_FALLBACKS = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'google/gemma-3-27b-it:free',
+  'openai/gpt-oss-20b:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'qwen/qwen3-next-80b-a3b-instruct:free',
+  'nousresearch/hermes-3-llama-3.1-405b:free',
+  'google/gemma-4-31b-it:free',
+  'z-ai/glm-4.5-air:free',
+];
+
+const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private providers: Map<string, ProviderConfig> = new Map();
+  private client: OpenAI | null = null;
 
   constructor(private config: ConfigService) {
-    // Initialize OpenAI
-    const openaiKey = this.config.get<string>('OPENAI_API_KEY');
-    if (openaiKey) {
-      const openai = new OpenAI({ apiKey: openaiKey });
-      this.providers.set('openai-gpt4o', {
-        name: 'openai-gpt4o',
-        client: openai,
-        costPer1kTokens: 0.005,
-        qualityScore: 95,
-        latencyMs: 800,
-        model: 'gpt-4o',
+    const apiKey = this.config.get<string>('OPENROUTER_API_KEY');
+    if (apiKey) {
+      this.client = new OpenAI({
+        baseURL: OPENROUTER_BASE,
+        apiKey,
+        defaultHeaders: {
+          'HTTP-Referer': 'https://3sc-platform.railway.app',
+          'X-Title': '3SC Platform',
+        },
       });
-      this.providers.set('openai-gpt4o-mini', {
-        name: 'openai-gpt4o-mini',
-        client: openai,
-        costPer1kTokens: 0.00015,
-        qualityScore: 80,
-        latencyMs: 300,
-        model: 'gpt-4o-mini',
-      });
-      this.providers.set('openai-embedding', {
-        name: 'openai-embedding',
-        client: openai,
-        costPer1kTokens: 0.00002,
-        qualityScore: 90,
-        latencyMs: 200,
-        model: 'text-embedding-3-small',
-      });
-    }
-
-    // Initialize Anthropic (if key provided)
-    const anthropicKey = this.config.get<string>('ANTHROPIC_API_KEY');
-    if (anthropicKey) {
-      this.providers.set('anthropic-haiku', {
-        name: 'anthropic-haiku',
-        client: null, // Implement Anthropic SDK if needed
-        costPer1kTokens: 0.00025,
-        qualityScore: 75,
-        latencyMs: 400,
-        model: 'claude-3-haiku-20240307',
-      });
+    } else {
+      this.logger.warn('OPENROUTER_API_KEY not set — AI features disabled');
     }
   }
 
-  private selectProvider(taskType: TaskType, budgetTier: BudgetTier = 'standard'): ProviderConfig {
-    const providers = Array.from(this.providers.values());
-    
-    // Filter out embedding-only provider for chat tasks
-    const chatProviders = providers.filter(p => !p.name.includes('embedding'));
-    
-    if (budgetTier === 'economy') {
-      // Pick cheapest/fastest
-      return chatProviders.sort((a, b) => a.costPer1kTokens - b.costPer1kTokens)[0];
-    }
-    
-    if (budgetTier === 'premium' || ['health_analysis', 'route'].includes(taskType)) {
-      // Pick highest quality
-      return chatProviders.sort((a, b) => b.qualityScore - a.qualityScore)[0];
-    }
-    
-    // Default: balance quality and cost
-    return chatProviders.find(p => p.name === 'openai-gpt4o-mini') || chatProviders[0];
+  private get isAvailable(): boolean {
+    return !!this.client;
   }
 
-  async classifyTicket(title: string, description: string, budgetTier?: BudgetTier) {
-    const provider = this.selectProvider('classify', budgetTier);
-    
-    const prompt = `Analyze this support ticket and respond with ONLY a JSON object:
+  // ── Core chat call ────────────────────────────────────────────────────────
+
+  private async chat(
+    model: string,
+    systemPrompt: string,
+    userPrompt: string,
+    opts: { json?: boolean; maxTokens?: number } = {},
+  ): Promise<string> {
+    if (!this.client) throw new Error('AI provider not configured');
+
+    const tryModel = async (m: string) =>
+      this.client!.chat.completions.create({
+        model: m,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: opts.json ? 0.1 : 0.4,
+        max_tokens: opts.maxTokens ?? 512,
+        ...(opts.json ? { response_format: { type: 'json_object' as const } } : {}),
+      } as any);
+
+    const chain = (model === MODEL_GENERATIVE || model === MODEL_ANALYTICAL)
+      ? [model, ...GENERATIVE_FALLBACKS]
+      : [model];
+
+    let lastErr: any;
+    for (const m of chain) {
+      try {
+        const response = await tryModel(m);
+        if (m !== model) this.logger.warn(`chat: primary ${model} failed — used fallback ${m}`);
+        return response.choices[0]?.message?.content ?? '';
+      } catch (err: any) {
+        const status = err?.status ?? err?.response?.status;
+        // 400/404: model-specific rejection (unsupported params, bad slug)
+        // 429/502/503: rate limit or provider down — all retryable across models
+        const retryable = [400, 402, 404, 429, 502, 503].includes(status);
+        this.logger.warn(`chat: ${m} returned ${status ?? 'unknown'} — ${retryable ? 'trying next' : 'propagating'}`);
+        if (retryable) { lastErr = err; continue; }
+        throw err;
+      }
+    }
+    throw lastErr;
+  }
+
+  // ── Classify ──────────────────────────────────────────────────────────────
+
+  async classifyTicket(title: string, description: string) {
+    if (!this.isAvailable) {
+      return this.classifyFallback('none');
+    }
+
+    try {
+      const raw = await this.chat(
+        MODEL_ANALYTICAL,
+        'You are a precise support ticket classifier. Respond ONLY with valid JSON, no markdown, no explanation.',
+        `Classify this support ticket and respond with exactly this JSON (no extra keys):
+        {
+          "category": "INCIDENT | BUG | FEATURE_REQUEST | QUESTION | SUPPORT | BILLING | TASK",
+          "priority": "LOW | MEDIUM | HIGH | URGENT",
+          "categoryConfidence": 0.0,
+          "priorityConfidence": 0.0,
+          "categoryReasoning": "one sentence",
+          "priorityReasoning": "one sentence",
+          "priorityFactors": ["factor1", "factor2"]
+        }
+
+        Title: ${title}
+        Description: ${description.slice(0, 500)}`,
+                { json: true, maxTokens: 512 },
+              );
+
+      // Strip markdown fences if model wraps response despite json mode
+      const clean = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+      const parsed = JSON.parse(clean);
+
+      return {
+        category: parsed.category ?? 'SUPPORT',
+        priority: parsed.priority ?? 'MEDIUM',
+        categoryConfidence: parsed.categoryConfidence ?? parsed.confidence ?? 0.7,
+        priorityConfidence: parsed.priorityConfidence ?? parsed.confidence ?? 0.7,
+        categoryReasoning: parsed.categoryReasoning ?? '',
+        priorityReasoning: parsed.priorityReasoning ?? '',
+        priorityFactors: Array.isArray(parsed.priorityFactors) ? parsed.priorityFactors : [],
+        provider: MODEL_ANALYTICAL,
+      };
+    } catch (err) {
+      this.logger.error(`classifyTicket failed: ${err.message}`);
+      return this.classifyFallback(MODEL_ANALYTICAL);
+    }
+  }
+
+  private classifyFallback(provider: string) {
+    return {
+      category: 'SUPPORT',
+      priority: 'MEDIUM',
+      categoryConfidence: 0,
+      priorityConfidence: 0,
+      categoryReasoning: '',
+      priorityReasoning: '',
+      priorityFactors: [] as string[],
+      provider,
+    };
+  }
+
+  // ── Summarize ─────────────────────────────────────────────────────────────
+
+  async summarizeTicket(content: string) {
+    if (!this.isAvailable) return { summary: '', provider: 'none' };
+
+    try {
+      const summary = await this.chat(
+        MODEL_ANALYTICAL,
+        'Summarize the following support ticket in 2-3 sentences. Be concise — capture the core issue and any action items.',
+        content,
+        { maxTokens: 300 },
+      );
+      return { summary, provider: MODEL_ANALYTICAL };
+    } catch (err) {
+      this.logger.error(`summarizeTicket failed: ${err.message}`);
+      return { summary: '', provider: MODEL_ANALYTICAL };
+    }
+  }
+
+  // ── RAG helpers ───────────────────────────────────────────────────────────
+
+  // Split article content into ~300-char overlapping chunks
+  private chunkText(text: string, size = 300): string[] {
+    const chunks: string[] = [];
+    for (let i = 0; i < text.length; i += size) {
+      chunks.push(text.slice(i, i + size));
+    }
+    return chunks;
+  }
+
+  // Trim a string to at most maxChars characters
+  private trim(text: string, maxChars: number): string {
+    return text.length > maxChars ? text.slice(0, maxChars) : text;
+  }
+
+  // Score a chunk against query terms (0 = no overlap, higher = more overlap)
+  private chunkScore(chunk: string, terms: string[]): number {
+    const lower = chunk.toLowerCase();
+    return terms.reduce((acc, t) => acc + (lower.includes(t) ? 1 : 0), 0);
+  }
+
+  // Pick the top-2 most relevant chunks from a single article
+  private topChunks(content: string, terms: string[], chunkSize = 300): string[] {
+    const chunks = this.chunkText(content, chunkSize);
+    return chunks
+      .map((c) => ({ c, s: this.chunkScore(c, terms) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, 2)
+      .map((x) => x.c);
+  }
+
+  /**
+   * Build a compact, citation-prefixed RAG context from KB article objects.
+   * Each article must have at least { title, content }.
+   * Falls back to accepting a pre-built context string for backward-compat.
+   */
+  buildRagContext(
+    articlesOrContext: Array<{ title: string; content: string; id?: string }> | string,
+    query: string,
+    maxContextChars = 2500,
+  ): { context: string; sources: Array<{ id?: string; title: string }> } {
+    // Backward compat: if a plain string is passed, return it as-is
+    if (typeof articlesOrContext === 'string') {
+      return { context: this.trim(articlesOrContext, maxContextChars), sources: [] };
+    }
+
+    const articles = articlesOrContext;
+    if (!articles.length) return { context: '', sources: [] };
+
+    const terms = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+    const chunks: string[] = [];
+    const sources: Array<{ id?: string; title: string }> = [];
+    let budget = maxContextChars;
+
+    for (const article of articles.slice(0, 4)) {
+      if (budget <= 0) break;
+      const selected = this.topChunks(article.content ?? '', terms);
+      for (const chunk of selected) {
+        const line = `[${article.title}] ${chunk}`;
+        if (line.length > budget) break;
+        chunks.push(line);
+        budget -= line.length;
+      }
+      sources.push({ id: article.id, title: article.title });
+    }
+
+    return { context: chunks.join('\n\n'), sources };
+  }
+
+  // ── Reply generation (RAG-aware) ─────────────────────────────────────────
+
+  /**
+   * Generate a reply grounded in KB context.
+   * `articlesOrContext` can be:
+   *   - KB article objects  → full RAG pipeline (chunk + rank + cite)
+   *   - a plain string      → legacy path, trimmed and sent directly
+   */
+  async generateReply(
+    ticketContent: string,
+    articlesOrContext: Array<{ title: string; content: string; id?: string }> | string,
+    tone = 'professional',
+  ) {
+    if (!this.isAvailable) return { reply: '', sources: [], provider: 'none' };
+
+    const { context, sources } = this.buildRagContext(articlesOrContext, ticketContent);
+
+    const safeTicket = this.trim(ticketContent, 1500);
+    const safeContext = context || 'No relevant KB articles found.';
+
+    const systemPrompt = [
+      `You are a helpful support agent. Respond in a ${tone} tone.`,
+      'Use the KB context only when it is relevant to the question.',
+      'If you reference a KB article, mention its title.',
+      'If the context does not help, answer from general knowledge and say so briefly.',
+      'Keep the answer concise (under 200 words).',
+    ].join(' ');
+
+    const userPrompt = `Ticket / Question:\n${safeTicket}\n\nKB Context:\n${safeContext}`;
+
+    try {
+      const reply = await this.chat(MODEL_GENERATIVE, systemPrompt, userPrompt, { maxTokens: 500 });
+      return { reply, sources, provider: MODEL_GENERATIVE };
+    } catch (err: any) {
+      this.logger.error('generateReply failed — all models exhausted', {
+        message: err.message,
+        status: err?.status ?? err?.response?.status,
+      });
+      return { reply: '', sources: [], provider: 'error' };
+    }
+  }
+
+  // ── KB draft ──────────────────────────────────────────────────────────────
+
+  async generateKbDraft(topic: string, context?: string) {
+    if (!this.isAvailable) return { title: '', content: '', provider: 'none' };
+
+    try {
+      const raw = await this.chat(
+        MODEL_GENERATIVE,
+        'You are a technical writer creating knowledge base articles. Respond ONLY with valid JSON.',
+        `Write a knowledge base article about: "${topic}"
+${context ? `Context: ${context}` : ''}
+
+Respond with:
 {
-  "category": "one of: bug, feature_request, billing, technical_support, account_issue",
-  "priority": "one of: low, medium, high, urgent",
-  "confidence": 0.0-1.0
-}
-
-Title: ${title}
-Description: ${description}`;
-
-    try {
-      const response = await (provider.client as OpenAI).chat.completions.create({
-        model: provider.model,
-        messages: [
-          { role: 'system', content: 'You are a precise support ticket classifier. Respond only with valid JSON.' },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.1,
-        max_tokens: 256,
-        response_format: { type: 'json_object' },
-      });
-
-      const content = response.choices[0]?.message?.content || '{}';
-      return JSON.parse(content);
-    } catch (error) {
-      this.logger.error(`AI classification failed: ${error.message}`);
-      return { category: 'technical_support', priority: 'medium', confidence: 0 };
+  "title": "article title",
+  "content": "full markdown article content"
+}`,
+        { json: true, maxTokens: 1200 },
+      );
+      const parsed = JSON.parse(raw);
+      return { ...parsed, provider: MODEL_GENERATIVE };
+    } catch (err) {
+      this.logger.error(`generateKbDraft failed: ${err.message}`);
+      return { title: topic, content: '', provider: MODEL_GENERATIVE };
     }
   }
 
-  async summarizeTicket(ticketContent: string, budgetTier?: BudgetTier) {
-    const provider = this.selectProvider('summarize', budgetTier);
-    
-    try {
-      const response = await (provider.client as OpenAI).chat.completions.create({
-        model: provider.model,
-        messages: [
-          { role: 'system', content: 'Summarize the following support ticket in 2-3 sentences. Be concise and capture the key issue and any action items.' },
-          { role: 'user', content: ticketContent },
-        ],
-        temperature: 0.3,
-        max_tokens: 300,
-      });
+  // ── Route suggestion ──────────────────────────────────────────────────────
 
-      return {
-        summary: response.choices[0]?.message?.content || '',
-        provider: provider.name,
-      };
-    } catch (error) {
-      this.logger.error(`AI summarization failed: ${error.message}`);
-      return { summary: '', provider: provider.name };
+  async suggestRoute(ticketTitle: string, ticketDesc: string, agents: Array<{ id: string; name: string; skills: string[] }>) {
+    if (!this.isAvailable) return { agent_id: null, reasoning: '', provider: 'none' };
+
+    try {
+      const raw = await this.chat(
+        MODEL_ANALYTICAL,
+        'You are a ticket routing engine. Respond ONLY with valid JSON.',
+        `Pick the best agent for this ticket.
+
+Ticket: ${ticketTitle}
+Description: ${ticketDesc}
+
+Agents:
+${agents.map((a) => `- id: ${a.id}, name: ${a.name}, skills: ${a.skills.join(', ')}`).join('\n')}
+
+Respond with:
+{
+  "agent_id": "the chosen agent id or null",
+  "reasoning": "one sentence explanation"
+}`,
+        { json: true, maxTokens: 256 },
+      );
+      const parsed = JSON.parse(raw);
+      return { ...parsed, provider: MODEL_ANALYTICAL };
+    } catch (err) {
+      this.logger.error(`suggestRoute failed: ${err.message}`);
+      return { agent_id: null, reasoning: '', provider: MODEL_ANALYTICAL };
     }
   }
 
-  async generateReply(ticketContent: string, context: string, tone: string = 'professional', budgetTier?: BudgetTier) {
-    const provider = this.selectProvider('reply', budgetTier);
-    
-    try {
-      const response = await (provider.client as OpenAI).chat.completions.create({
-        model: provider.model,
-        messages: [
-          { role: 'system', content: `You are a helpful support agent. Respond in a ${tone} tone. Use the provided knowledge base context if relevant.` },
-          { role: 'user', content: `Ticket: ${ticketContent}\n\nContext from KB: ${context}` },
-        ],
-        temperature: 0.4,
-        max_tokens: 800,
-      });
-
-      return {
-        reply: response.choices[0]?.message?.content || '',
-        provider: provider.name,
-      };
-    } catch (error) {
-      this.logger.error(`AI reply generation failed: ${error.message}`);
-      return { reply: '', provider: provider.name };
-    }
-  }
+  // ── Embeddings ────────────────────────────────────────────────────────────
 
   async generateEmbedding(text: string): Promise<number[]> {
-    const provider = this.providers.get('openai-embedding');
-    if (!provider) throw new Error('No embedding provider configured');
+    if (!this.client) return [];
 
     try {
-      const response = await (provider.client as OpenAI).embeddings.create({
-        model: provider.model,
-        input: text.substring(0, 8000), // Token limit safety
+      const response = await this.client.embeddings.create({
+        model: MODEL_EMBED,
+        input: [{ content: [{ type: 'text', text: text.substring(0, 4000) }] }] as any,
+        encoding_format: 'float',
       });
-
-      return response.data[0]?.embedding || [];
-    } catch (error) {
-      this.logger.error(`Embedding generation failed: ${error.message}`);
+      return (response.data[0]?.embedding as number[]) ?? [];
+    } catch (err) {
+      this.logger.error(`generateEmbedding failed: ${err.message}`);
       return [];
     }
   }
 
-  async semanticSearch(query: string, tenantId: string, limit: number = 5) {
-    const embedding = await this.generateEmbedding(query);
-    if (!embedding.length) return [];
-
-    // This would call Prisma raw query with pgvector
-    // Implementation depends on your Prisma setup with vector extension
-    return [];
-  }
+  // ── Provider status ───────────────────────────────────────────────────────
 
   getProviderStatus() {
-    return Array.from(this.providers.values()).map(p => ({
-      name: p.name,
-      model: p.model,
-      available: !!p.client || p.name === 'anthropic-haiku',
-      costPer1kTokens: p.costPer1kTokens,
-      qualityScore: p.qualityScore,
-    }));
+    return {
+      available: this.isAvailable,
+      provider: 'OpenRouter',
+      models: {
+        analytical: MODEL_ANALYTICAL,
+        generative: MODEL_GENERATIVE,
+        embedding: MODEL_EMBED,
+      },
+    };
   }
 }

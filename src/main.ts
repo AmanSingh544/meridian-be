@@ -6,6 +6,7 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { CamelToSnakeInterceptor } from './shared/interceptors/camel-to-snake.interceptor';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -28,6 +29,9 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-ID'],
   });
+
+  // Convert camelCase body keys → snake_case before validation (frontend sends camelCase)
+  app.useGlobalInterceptors(new CamelToSnakeInterceptor());
 
   // Global validation
   app.useGlobalPipes(

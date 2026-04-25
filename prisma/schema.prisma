@@ -23,6 +23,7 @@ model Tenant {
   tickets     Ticket[]
   comments    Comment[]
   attachments Attachment[]
+  kb_categories KbCategory[]
   kb_articles KbArticle[]
   audit_logs  AuditLog[]
   notifications Notification[]
@@ -66,6 +67,7 @@ model User {
   permission_overrides PermissionOverride[]
   user_skills   UserSkill[]
   workloads     Workload[]
+  kb_articles   KbArticle[]
 
   @@index([tenant_id, email])
   @@index([tenant_id, role])
@@ -198,23 +200,54 @@ model Attachment {
 // ─────────────────────────────────────────────
 // KNOWLEDGE BASE
 // ─────────────────────────────────────────────
+model KbCategory {
+  id          String      @id @default(uuid()) @db.Uuid
+  tenant_id   String      @db.Uuid
+  name        String
+  slug        String
+  description String?
+  parent_id   String?     @db.Uuid
+  created_at  DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime    @updatedAt @db.Timestamptz(6)
+
+  tenant      Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  parent      KbCategory? @relation("CategoryTree", fields: [parent_id], references: [id])
+  children    KbCategory[] @relation("CategoryTree")
+  articles    KbArticle[]
+
+  @@unique([tenant_id, slug])
+  @@index([tenant_id])
+  @@map("kb_categories")
+}
+
 model KbArticle {
-  id             String   @id @default(uuid()) @db.Uuid
-  tenant_id      String   @db.Uuid
-  category_id    String?  @db.Uuid
-  title          String
-  content        String
-  content_vector Unsupported("vector")?
-  helpful_count  Int      @default(0)
-  view_count     Int      @default(0)
-  status         String   @default("published")
-  published_at   DateTime? @db.Timestamptz(6)
-  created_at     DateTime @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime @updatedAt @db.Timestamptz(6)
+  id                  String      @id @default(uuid()) @db.Uuid
+  tenant_id           String      @db.Uuid
+  category_id         String?     @db.Uuid
+  author_id           String?     @db.Uuid
+  title               String
+  slug                String
+  excerpt             String?
+  content             String
+  tags                String[]    @default([])
+  related_article_ids String[]    @default([]) @db.Uuid
+  content_vector      Unsupported("vector")?
+  search_vector       Unsupported("tsvector")?
+  helpful_count       Int         @default(0)
+  view_count          Int         @default(0)
+  status              String      @default("published")
+  published_at        DateTime?   @db.Timestamptz(6)
+  created_at          DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime    @updatedAt @db.Timestamptz(6)
 
-  tenant         Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant              Tenant      @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  category            KbCategory? @relation(fields: [category_id], references: [id], onDelete: SetNull)
+  author              User?       @relation(fields: [author_id], references: [id], onDelete: SetNull)
 
+  @@unique([tenant_id, slug])
   @@index([tenant_id, status])
+  @@index([tenant_id, category_id])
+  @@index([tenant_id, tags])
   @@map("kb_articles")
 }
 
@@ -451,6 +484,16 @@ model UserSkill {
 
   @@unique([user_id, skill_id])
   @@map("user_skills")
+}
+
+// ─────────────────────────────────────────────
+// TICKET COUNTERS (atomic per-tenant numbering)
+// ─────────────────────────────────────────────
+model TicketCounter {
+  tenant_id   String @id @db.Uuid
+  last_number Int    @default(0)
+
+  @@map("ticket_counters")
 }
 
 // ─────────────────────────────────────────────

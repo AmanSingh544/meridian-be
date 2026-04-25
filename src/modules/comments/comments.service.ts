@@ -1,45 +1,55 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function assertUuid(value: string, label = 'id'): void {
+  if (!value || !UUID_RE.test(value)) {
+    throw new BadRequestException(`Invalid ${label}: '${value}' is not a valid UUID`);
+  }
+}
+
+const AUTHOR_SELECT = {
+  id: true,
+  first_name: true,
+  last_name: true,
+  email: true,
+  avatar_url: true,
+  role: true,
+};
 
 @Injectable()
 export class CommentsService {
   constructor(private prisma: PrismaService) {}
 
-  async findByTicket(ticketId: string, tenantId: string) {
-    // Verify ticket exists and belongs to tenant
+  async findByTicket(
+    ticketId: string,
+    tenantId: string,
+    options: { includeInternal?: boolean } = {},
+  ) {
+    assertUuid(ticketId, 'ticket id');
     const ticket = await this.prisma.ticket.findFirst({
       where: { id: ticketId, tenant_id: tenantId },
       select: { id: true },
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
 
+    const where: any = { ticket_id: ticketId, tenant_id: tenantId, parent_id: null };
+    if (!options.includeInternal) where.is_internal = false;
+
     const comments = await this.prisma.comment.findMany({
-      where: { ticket_id: ticketId, tenant_id: tenantId },
+      where,
       orderBy: { created_at: 'asc' },
       include: {
-        author: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            email: true,
-            avatar_url: true,
-            role: true,
-          },
-        },
+        author: { select: AUTHOR_SELECT },
         replies: {
-          include: {
-            author: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                email: true,
-                avatar_url: true,
-                role: true,
-              },
-            },
-          },
+          where: options.includeInternal ? {} : { is_internal: false },
+          orderBy: { created_at: 'asc' },
+          include: { author: { select: AUTHOR_SELECT } },
         },
         attachments: {
           select: {
@@ -55,31 +65,48 @@ export class CommentsService {
       },
     });
 
-    return { data: comments };
+    return { data: comments.map(this.formatComment) };
   }
 
   async create(dto: {
-    ticket_id: string;
+    ticket_id?: string;
+    ticketId?: string;
     tenant_id: string;
     author_id: string;
-    body: string;
+    body?: string;
+    message?: string;
+    content?: string;
     is_internal?: boolean;
+    isInternal?: boolean;
     parent_id?: string;
-    mentions?: string[];
+    parentId?: string;
+    mentioned_user_ids?: string[];
+    attachment_ids?: string[];
   }) {
-    // Verify ticket exists and belongs to tenant
+    // Normalize field names
+    const ticketId = dto.ticket_id ?? dto.ticketId;
+    const body = dto.body ?? dto.message ?? dto.content ?? '';
+    const isInternal = dto.is_internal ?? dto.isInternal ?? false;
+    const parentId = dto.parent_id ?? dto.parentId ?? null;
+    const mentions = dto.mentioned_user_ids ?? [];
+    const attachmentIds = dto.attachment_ids ?? [];
+
+    if (!ticketId) {
+      throw new BadRequestException('ticket_id or ticketId is required');
+    }
+    assertUuid(ticketId, 'ticket id');
+
     const ticket = await this.prisma.ticket.findFirst({
-      where: { id: dto.ticket_id, tenant_id: dto.tenant_id },
+      where: { id: ticketId, tenant_id: dto.tenant_id },
       select: { id: true },
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
 
-    // If parent_id provided, verify it exists on same ticket
-    if (dto.parent_id) {
+    if (parentId) {
       const parent = await this.prisma.comment.findFirst({
         where: {
-          id: dto.parent_id,
-          ticket_id: dto.ticket_id,
+          id: parentId,
+          ticket_id: ticketId,
           tenant_id: dto.tenant_id,
         },
         select: { id: true },
@@ -90,28 +117,98 @@ export class CommentsService {
     const comment = await this.prisma.comment.create({
       data: {
         tenant_id: dto.tenant_id,
-        ticket_id: dto.ticket_id,
+        ticket_id: ticketId,
         author_id: dto.author_id,
-        body: dto.body,
-        is_internal: dto.is_internal ?? false,
-        parent_id: dto.parent_id ?? null,
-        mentions: dto.mentions ?? [],
+        body,
+        is_internal: isInternal,
+        parent_id: parentId,
+        mentions,
+        ...(attachmentIds.length > 0
+          ? {
+              attachments: {
+                connect: attachmentIds.map((id) => ({ id })),
+              },
+            }
+          : {}),
       },
       include: {
-        author: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            email: true,
-            avatar_url: true,
-            role: true,
-          },
-        },
+        author: { select: AUTHOR_SELECT },
         attachments: true,
       },
     });
 
-    return { data: comment };
+    return { data: this.formatComment(comment) };
+  }
+
+  async update(
+    id: string,
+    tenantId: string,
+    actorId: string,
+    actorRole: string,
+    body: string,
+  ) {
+    const comment = await this.prisma.comment.findFirst({
+      where: { id, tenant_id: tenantId },
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+
+    const isOwner = comment.author_id === actorId;
+    const canEdit = isOwner || ['ADMIN', 'LEAD'].includes(actorRole);
+    if (!canEdit) throw new ForbiddenException('You cannot edit this comment');
+
+    const updated = await this.prisma.comment.update({
+      where: { id },
+      data: { body },
+      include: { author: { select: AUTHOR_SELECT } },
+    });
+
+    return { data: this.formatComment(updated) };
+  }
+
+  async remove(
+    id: string,
+    tenantId: string,
+    actorId: string,
+    actorRole: string,
+  ) {
+    const comment = await this.prisma.comment.findFirst({
+      where: { id, tenant_id: tenantId },
+    });
+    if (!comment) throw new NotFoundException('Comment not found');
+
+    const isOwner = comment.author_id === actorId;
+    const canDelete = isOwner || ['ADMIN', 'LEAD'].includes(actorRole);
+    if (!canDelete) throw new ForbiddenException('You cannot delete this comment');
+
+    await this.prisma.comment.delete({ where: { id } });
+    return { success: true, message: 'Comment deleted successfully' };
+  }
+
+  private formatComment(comment: any) {
+    return {
+      id: comment.id,
+      ticket_id: comment.ticket_id,
+      tenant_id: comment.tenant_id,
+      body: comment.body,
+      is_internal: comment.is_internal,
+      parent_id: comment.parent_id,
+      mentions: comment.mentions ?? [],
+      author: comment.author
+        ? {
+            id: comment.author.id,
+            display_name:
+              [comment.author.first_name, comment.author.last_name]
+                .filter(Boolean)
+                .join(' ') || comment.author.email,
+            email: comment.author.email,
+            avatar_url: comment.author.avatar_url,
+            role: comment.author.role,
+          }
+        : null,
+      attachments: comment.attachments ?? [],
+      replies: comment.replies?.map((r: any) => this.formatComment(r)) ?? undefined,
+      created_at: comment.created_at,
+      updated_at: comment.updated_at,
+    };
   }
 }

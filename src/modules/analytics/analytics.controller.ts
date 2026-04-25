@@ -1,17 +1,13 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiCookieAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiCookieAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { AnalyticsService } from './analytics.service';
-import {
-  TicketVolumeDataDto,
-  SLAComplianceDataDto,
-  ResolutionTrendDataDto,
-  AgentPerformanceDataDto,
-  MonthlyVolumeDataDto,
-  CategoryBreakdownDataDto,
-  SeverityDistributionDataDto,
-  ResolutionBySeverityDataDto,
-} from './dto/analytics.dto';
+
+function periodToDays(period?: string): number {
+  if (period === '7d')  return 7;
+  if (period === '90d') return 90;
+  return 30; // default: 30d
+}
 
 @ApiTags('Analytics')
 @ApiCookieAuth('access_token')
@@ -21,42 +17,66 @@ export class AnalyticsController {
   constructor(private analyticsService: AnalyticsService) {}
 
   @Get('ticket-volume')
-  @ApiOperation({ summary: 'Ticket volume over time' })
-  @ApiResponse({ status: 200, type: [TicketVolumeDataDto] })
-  ticketVolume() { return this.analyticsService.ticketVolume(); }
+  @ApiOperation({ summary: 'Ticket volume over time (daily)' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d'] })
+  ticketVolume(@Query('tenant_id') tenantId: string, @Query('period') period?: string) {
+    return this.analyticsService.ticketVolume(tenantId, periodToDays(period));
+  }
 
   @Get('sla-compliance')
-  @ApiOperation({ summary: 'SLA compliance metrics' })
-  @ApiResponse({ status: 200, type: [SLAComplianceDataDto] })
-  slaCompliance() { return this.analyticsService.slaCompliance(); }
+  @ApiOperation({ summary: 'SLA compliance rate' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d'] })
+  slaCompliance(@Query('tenant_id') tenantId: string, @Query('period') period?: string) {
+    return this.analyticsService.slaCompliance(tenantId, periodToDays(period));
+  }
 
   @Get('resolution-trends')
-  @ApiOperation({ summary: 'Resolution trend metrics' })
-  @ApiResponse({ status: 200, type: [ResolutionTrendDataDto] })
-  resolutionTrends() { return this.analyticsService.resolutionTrends(); }
+  @ApiOperation({ summary: 'Avg resolution time by week' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d'] })
+  resolutionTrends(@Query('tenant_id') tenantId: string, @Query('period') period?: string) {
+    return this.analyticsService.resolutionTrends(tenantId, periodToDays(period));
+  }
 
   @Get('agent-performance')
-  @ApiOperation({ summary: 'Agent performance metrics' })
-  @ApiResponse({ status: 200, type: [AgentPerformanceDataDto] })
-  agentPerformance() { return this.analyticsService.agentPerformance(); }
+  @ApiOperation({ summary: 'Per-agent ticket resolution stats' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d'] })
+  agentPerformance(@Query('tenant_id') tenantId: string, @Query('period') period?: string) {
+    return this.analyticsService.agentPerformance(tenantId, periodToDays(period));
+  }
 
   @Get('monthly-volume')
   @ApiOperation({ summary: 'Monthly ticket volume' })
-  @ApiResponse({ status: 200, type: [MonthlyVolumeDataDto] })
-  monthlyVolume() { return this.analyticsService.monthlyVolume(); }
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d'] })
+  monthlyVolume(@Query('tenant_id') tenantId: string, @Query('period') period?: string) {
+    return this.analyticsService.monthlyVolume(tenantId, periodToDays(period));
+  }
 
   @Get('category-breakdown')
-  @ApiOperation({ summary: 'Tickets by category' })
-  @ApiResponse({ status: 200, type: [CategoryBreakdownDataDto] })
-  categoryBreakdown() { return this.analyticsService.categoryBreakdown(); }
+  @ApiOperation({ summary: 'Ticket count by category' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d'] })
+  categoryBreakdown(@Query('tenant_id') tenantId: string, @Query('period') period?: string) {
+    return this.analyticsService.categoryBreakdown(tenantId, periodToDays(period));
+  }
 
   @Get('severity-distribution')
-  @ApiOperation({ summary: 'Tickets by severity/priority' })
-  @ApiResponse({ status: 200, type: [SeverityDistributionDataDto] })
-  severityDistribution() { return this.analyticsService.severityDistribution(); }
+  @ApiOperation({ summary: 'Ticket count by priority' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d'] })
+  severityDistribution(@Query('tenant_id') tenantId: string, @Query('period') period?: string) {
+    return this.analyticsService.severityDistribution(tenantId, periodToDays(period));
+  }
 
   @Get('resolution-by-severity')
-  @ApiOperation({ summary: 'Resolution time by severity' })
-  @ApiResponse({ status: 200, type: [ResolutionBySeverityDataDto] })
-  resolutionBySeverity() { return this.analyticsService.resolutionBySeverity(); }
+  @ApiOperation({ summary: 'Avg resolution time by priority' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'period', required: false, enum: ['7d', '30d', '90d'] })
+  resolutionBySeverity(@Query('tenant_id') tenantId: string, @Query('period') period?: string) {
+    return this.analyticsService.resolutionBySeverity(tenantId, periodToDays(period));
+  }
 }

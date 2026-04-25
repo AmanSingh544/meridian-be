@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Query, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -21,29 +21,61 @@ export class NotificationsController {
 
   @Get()
   @ApiOperation({ summary: 'Get notifications for current user' })
-  @ApiQuery({ name: 'page', required: false, example: '1' })
-  @ApiQuery({ name: 'unread_only', required: false, example: 'false' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'unread_only', required: false })
   @ApiResponse({ status: 200, type: [NotificationResponseDto] })
   findAll(
     @CurrentUser('userId') userId: string,
-    @Query('page') page: string = '1',
+    @Query('tenant_id') tenantId: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
     @Query('unread_only') unreadOnly?: string,
   ) {
-    return this.notificationsService.findAll(userId, parseInt(page), unreadOnly === 'true');
+    return this.notificationsService.findAll(
+      userId,
+      tenantId,
+      parseInt(page),
+      parseInt(limit),
+      unreadOnly === 'true',
+    );
   }
 
   @Post(':id/read')
   @ApiOperation({ summary: 'Mark a notification as read' })
-  @ApiParam({ name: 'id', example: 'notif_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
   @ApiResponse({ status: 200 })
-  markRead(@Param('id') id: string, @CurrentUser('userId') userId: string) {
-    return this.notificationsService.markRead(id, userId);
+  markRead(
+    @Param('id') id: string,
+    @CurrentUser('userId') userId: string,
+    @Query('tenant_id') tenantId: string,
+  ) {
+    return this.notificationsService.markRead(id, userId, tenantId);
   }
 
   @Post('read-all')
   @ApiOperation({ summary: 'Mark all notifications as read' })
+  @ApiQuery({ name: 'tenant_id', required: true })
   @ApiResponse({ status: 200 })
-  markAllRead(@CurrentUser('userId') userId: string) {
-    return this.notificationsService.markAllRead(userId);
+  markAllRead(
+    @CurrentUser('userId') userId: string,
+    @Query('tenant_id') tenantId: string,
+  ) {
+    return this.notificationsService.markAllRead(userId, tenantId);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a notification' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200 })
+  remove(
+    @Param('id') id: string,
+    @CurrentUser('userId') userId: string,
+    @Query('tenant_id') tenantId: string,
+  ) {
+    return this.notificationsService.remove(id, userId, tenantId);
   }
 }
