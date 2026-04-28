@@ -1,5 +1,8 @@
 FROM node:20-alpine AS builder
 
+# Install OpenSSL (required by Prisma engine)
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
 # Install dependencies
@@ -13,6 +16,9 @@ RUN npm run build
 
 # Production image
 FROM node:20-alpine
+
+# Install OpenSSL (required by Prisma engine at runtime)
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
