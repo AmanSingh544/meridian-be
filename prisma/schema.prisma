@@ -1,5 +1,10 @@
+//generator client {
+//  provider = "prisma-client-js"
+//}
+
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -501,6 +506,24 @@ model TicketCounter {
   last_number Int    @default(0)
 
   @@map("ticket_counters")
+}
+
+// ─────────────────────────────────────────────
+// AI SUGGESTION FEEDBACK
+// ─────────────────────────────────────────────
+model AiSuggestionFeedback {
+  id            String   @id @default(uuid()) @db.Uuid
+  suggestion_id String               // sugg_{ticketId}_{type}
+  ticket_id     String   @db.Uuid
+  type          String               // classification | priority | route | reply | summary | eta
+  action        String               // accepted | rejected
+  agent_id      String?  @db.Uuid   // populated when a routing suggestion is accepted
+  reason        String?              // free-text rejection reason
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([suggestion_id])
+  @@index([ticket_id, type])
+  @@map("ai_suggestion_feedback")
 }
 
 // ─────────────────────────────────────────────
