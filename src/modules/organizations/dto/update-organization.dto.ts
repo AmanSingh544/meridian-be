@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateOrganizationDto {
@@ -41,4 +41,12 @@ export class UpdateOrganizationDto {
   @IsOptional()
   @IsObject()
   branding?: Record<string, any>;
+
+  @ApiPropertyOptional({
+    description: 'Whether the organization is active',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

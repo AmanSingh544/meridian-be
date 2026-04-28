@@ -51,40 +51,52 @@ export class TicketsService {
       priority?: string | string[];
       category?: string;
       assignee_id?: string;
+      assignedTo?: string;
+      unassigned?: boolean | string;
       requester_id?: string;
+      project_id?: string;
       search?: string;
       date_from?: string;
       date_to?: string;
       page?: number;
       limit?: number;
+      page_size?: number;
       sort_by?: string;
+      sortBy?: string;
       sort_order?: 'asc' | 'desc';
+      sortOrder?: 'asc' | 'desc';
     },
   ) {
     const page = Math.max(1, filters.page ?? 1);
-    const limit = Math.min(100, Math.max(1, filters.limit ?? 25));
-    const sortBy = VALID_SORT_FIELDS.has(filters.sort_by ?? '')
-      ? filters.sort_by!
-      : 'updated_at';
-    const sortOrder = filters.sort_order === 'asc' ? 'asc' : 'desc';
+    const limit = Math.min(100, Math.max(1, filters.limit ?? filters.page_size ?? 25));
+    const rawSortBy = filters.sort_by ?? filters.sortBy ?? 'updated_at';
+    const sortBy = VALID_SORT_FIELDS.has(rawSortBy) ? rawSortBy : 'updated_at';
+    const rawSortOrder = filters.sort_order ?? filters.sortOrder;
+    const sortOrder = rawSortOrder === 'asc' ? 'asc' : 'desc';
 
     const where: any = { tenant_id: tenantId };
 
     if (filters.status) {
-      const statuses = Array.isArray(filters.status)
+      const statuses = (Array.isArray(filters.status)
         ? filters.status
-        : filters.status.split(',').map((s: string) => s.trim());
+        : filters.status.split(',').map((s: string) => s.trim())
+      ).map((s) => s.toUpperCase());
       where.status = { in: statuses };
     }
     if (filters.priority) {
-      const priorities = Array.isArray(filters.priority)
+      const priorities = (Array.isArray(filters.priority)
         ? filters.priority
-        : filters.priority.split(',').map((s: string) => s.trim());
+        : filters.priority.split(',').map((s: string) => s.trim())
+      ).map((s) => s.toUpperCase());
       where.priority = { in: priorities };
     }
     if (filters.category) where.category = filters.category;
-    if (filters.assignee_id) where.assignee_id = filters.assignee_id;
+    const assigneeId = filters.assignee_id ?? filters.assignedTo;
+    if (assigneeId) where.assignee_id = assigneeId;
+    const isUnassigned = filters.unassigned === true || filters.unassigned === 'true';
+    if (isUnassigned) where.assignee_id = null;
     if (filters.requester_id) where.requester_id = filters.requester_id;
+    if (filters.project_id) where.project_id = filters.project_id;
     if (filters.date_from || filters.date_to) {
       where.created_at = {};
       if (filters.date_from) where.created_at.gte = new Date(filters.date_from);
@@ -115,7 +127,7 @@ export class TicketsService {
     ]);
 
     return {
-      data: data.map(this.formatTicket),
+      data: data.map((t) => this.formatTicket(t)),
       page,
       page_size: limit,
       total,
@@ -162,13 +174,13 @@ export class TicketsService {
     const metadata = {
       ...(dto.metadata ?? {}),
       ...(dto.environment ? { environment: dto.environment } : {}),
-      ...(dto.project_id ? { project_id: dto.project_id } : {}),
     };
 
     const ticketNumber = await this.generateTicketNumber(dto.tenant_id);
     const ticket = await this.prisma.ticket.create({
       data: {
         tenant_id: dto.tenant_id,
+        project_id: dto.project_id ?? null,
         ticket_number: ticketNumber,
         title: dto.title,
         description: dto.description,
@@ -226,6 +238,7 @@ export class TicketsService {
     if (dto.category !== undefined) updateData.category = dto.category;
     if (dto.tags !== undefined) updateData.tags = dto.tags;
     if (assigneeId !== undefined) updateData.assignee_id = assigneeId;
+    if ((dto as any).project_id !== undefined) updateData.project_id = (dto as any).project_id ?? null;
 
     const updated = await this.prisma.ticket.update({
       where: { id },
@@ -369,7 +382,7 @@ export class TicketsService {
       created_at: ticket.created_at,
       updated_at: ticket.updated_at,
       metadata: ticket.metadata ?? {},
-      projectId: (ticket.metadata as any)?.project_id ?? null,
+      project_id: ticket.project_id ?? null,
       environment: (ticket.metadata as any)?.environment ?? null,
     };
   }

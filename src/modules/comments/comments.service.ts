@@ -65,7 +65,7 @@ export class CommentsService {
       },
     });
 
-    return { data: comments.map(this.formatComment) };
+    return { data: comments.map((c) => this.formatComment(c)) };
   }
 
   async create(dto: {

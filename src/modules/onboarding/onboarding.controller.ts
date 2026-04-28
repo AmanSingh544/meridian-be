@@ -10,7 +10,12 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { OnboardingService } from './onboarding.service';
-import { UpdateOnboardingTaskDto, OnboardingProjectDto } from './dto/onboarding.dto';
+import {
+  UpdateOnboardingTaskDto,
+  CreateOnboardingProjectDto,
+  UpdateOnboardingProjectDto,
+  OnboardingProjectDto,
+} from './dto/onboarding.dto';
 
 @ApiTags('Onboarding')
 @ApiCookieAuth('access_token')
@@ -35,20 +40,20 @@ export class OnboardingController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a single onboarding item' })
+  @ApiOperation({ summary: 'Get a single onboarding project' })
   @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'tenant_id', required: false })
   @ApiResponse({ status: 200, type: OnboardingProjectDto })
   findOne(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
     return this.onboardingService.findOne(id, tenantId);
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create an onboarding item' })
-  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiOperation({ summary: 'Create a new onboarding project with initial tasks' })
+  @ApiBody({ type: CreateOnboardingProjectDto })
   @ApiResponse({ status: 201, type: OnboardingProjectDto })
-  create(@Query('tenant_id') tenantId: string, @Body() dto: any) {
-    return this.onboardingService.create(tenantId, dto);
+  create(@Body() dto: CreateOnboardingProjectDto) {
+    return this.onboardingService.createProject(dto);
   }
 
   @Patch(':onboardingId/tasks/:taskId')
@@ -66,25 +71,22 @@ export class OnboardingController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update an onboarding item' })
+  @ApiOperation({ summary: 'Update onboarding project fields (go-live date, status)' })
   @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
-  @ApiBody({ type: UpdateOnboardingTaskDto })
+  @ApiBody({ type: UpdateOnboardingProjectDto })
   @ApiResponse({ status: 200, type: OnboardingProjectDto })
   update(
     @Param('id') id: string,
-    @Query('tenant_id') tenantId: string,
-    @Body() dto: UpdateOnboardingTaskDto,
+    @Body() dto: UpdateOnboardingProjectDto,
   ) {
-    return this.onboardingService.update(id, tenantId, dto);
+    return this.onboardingService.updateProject(id, dto);
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete an onboarding item' })
-  @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiOperation({ summary: 'Delete all onboarding tasks for a project (by tenant/org id)' })
+  @ApiParam({ name: 'id', description: 'Organization / tenant ID' })
   @ApiResponse({ status: 200 })
-  remove(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
-    return this.onboardingService.remove(id, tenantId);
+  remove(@Param('id') id: string) {
+    return this.onboardingService.removeProject(id);
   }
 }

@@ -25,6 +25,7 @@ import { DeliveryModule } from './modules/delivery/delivery.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { RoadmapModule } from './modules/roadmap/roadmap.module';
 import { UserPreferencesModule } from './modules/user-preferences/user-preferences.module';
+import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
 import { TeamModule } from './modules/team/team.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { PrismaModule } from './shared/prisma/prisma.module';
@@ -72,6 +73,7 @@ import { PrismaModule } from './shared/prisma/prisma.module';
     OnboardingModule,
     RoadmapModule,
     UserPreferencesModule,
+    SystemSettingsModule,
     TeamModule,
     RealtimeModule,
   ],

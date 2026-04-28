@@ -64,4 +64,24 @@ export class EscalationsService {
     });
     return { data: updated };
   }
+
+  async getAgents(tenantId: string) {
+    const agents = await this.prisma.user.findMany({
+      where: { tenant_id: tenantId, role: { in: ['AGENT', 'LEAD'] } },
+      select: {
+        id: true,
+        first_name: true,
+        last_name: true,
+        _count: { select: { assignee_tickets: { where: { status: 'IN_PROGRESS' } } } },
+      },
+    });
+
+    return {
+      data: agents.map((a) => ({
+        id: a.id,
+        displayName: [a.first_name, a.last_name].filter(Boolean).join(' '),
+        currentLoad: a._count.assignee_tickets,
+      })),
+    };
+  }
 }

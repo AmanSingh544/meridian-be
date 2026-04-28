@@ -10,7 +10,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { EscalationsService } from './escalations.service';
-import { EscalationAssignDto, EscalationResolveDto, EscalationResponseDto } from './dto/escalation.dto';
+import { EscalationAssignDto, EscalationResolveDto, EscalationResponseDto, EscalationAgentDto } from './dto/escalation.dto';
 
 @ApiTags('Escalations')
 @ApiCookieAuth('access_token')
@@ -18,6 +18,14 @@ import { EscalationAssignDto, EscalationResolveDto, EscalationResponseDto } from
 @UseGuards(JwtAuthGuard)
 export class EscalationsController {
   constructor(private escalationsService: EscalationsService) {}
+
+  @Get('agents')
+  @ApiOperation({ summary: 'List agents available for escalation assignment' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200, type: [EscalationAgentDto] })
+  getAgents(@Query('tenant_id') tenantId: string) {
+    return this.escalationsService.getAgents(tenantId);
+  }
 
   @Get()
   @ApiOperation({ summary: 'List escalations for a tenant' })

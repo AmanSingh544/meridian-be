@@ -32,6 +32,16 @@ function seededUuid(prefix: string, seed: string): string {
     'TKT-016': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c16',
     'TKT-018': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c18',
     'TKT-020': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c20',
+    // PRJ-006 project tickets
+    'TKT-051': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c51',
+    'TKT-052': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c52',
+    'TKT-053': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c53',
+    'TKT-054': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c54',
+    'TKT-055': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c55',
+    'TKT-056': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c56',
+    'TKT-057': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c57',
+    'TKT-058': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380c58',
+    'PRJ-006': 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d06',
   };
   if (map[seed]) return map[seed];
 
@@ -278,11 +288,110 @@ async function main() {
 
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 7. TICKETS  (25 tickets — full set from frontend mocks)
+  // 7. PROJECTS + TICKETS  (projects must be inserted before tickets due to FK)
   // ═══════════════════════════════════════════════════════════════════════════
+  const projectsData = [
+    {
+      id: seededUuid('project', 'PRJ-001'), tenant_id: t('ORG-002'), status: 'active', client_id: u('USR-101'), health_score: 62,
+      name: 'Customer Support Platform',
+      description: 'Building a scalable customer support system with AI-powered ticket routing and analytics dashboard.',
+      metadata: {
+        scope: 'Deliver a multi-tenant SaaS support platform including ticket management, SLA enforcement, AI-assisted triage, and a customer-facing portal.',
+        ticketCount: 42, openTicketCount: 8, resolvedThisWeek: 3,
+        milestones: [
+          { id: 'M-001', title: 'Kick-off & Requirements', isCompleted: true,  completedAt: new Date('2025-10-25'), dueDate: new Date('2025-10-30'), estimatedTickets: 5,  openTickets: 0 },
+          { id: 'M-002', title: 'UI Design & Prototyping', isCompleted: true,  completedAt: new Date('2025-11-15'), dueDate: new Date('2025-11-20'), estimatedTickets: 12, openTickets: 0 },
+          { id: 'M-003', title: 'API Development',         isCompleted: true,  completedAt: new Date('2026-02-10'), dueDate: new Date('2026-02-15'), estimatedTickets: 18, openTickets: 0 },
+          { id: 'M-004', title: 'AI Integration',          isCompleted: false, completedAt: null,                  dueDate: new Date('2026-05-01'), estimatedTickets: 14, openTickets: 6 },
+          { id: 'M-005', title: 'Go-Live',                 isCompleted: false, completedAt: null,                  dueDate: new Date('2026-06-15'), estimatedTickets: 8,  openTickets: 2 },
+        ],
+      },
+      created_at: new Date('2025-10-20T09:00:00Z'), updated_at: new Date('2026-04-15T11:30:00Z'),
+    },
+    {
+      id: seededUuid('project', 'PRJ-002'), tenant_id: t('ORG-003'), status: 'planning', client_id: u('USR-103'), health_score: 88,
+      name: 'Mobile App Revamp',
+      description: 'Redesigning the mobile application with improved UX and performance optimizations for iOS and Android.',
+      metadata: {
+        scope: 'Redesign and rebuild the iOS and Android mobile apps using React Native.',
+        ticketCount: 15, openTicketCount: 4, resolvedThisWeek: 1,
+        milestones: [
+          { id: 'M-101', title: 'Discovery & Research', isCompleted: true,  completedAt: new Date('2026-03-25'), dueDate: new Date('2026-03-30'), estimatedTickets: 6,  openTickets: 0 },
+          { id: 'M-102', title: 'UX Design',            isCompleted: false, completedAt: null,                  dueDate: new Date('2026-05-10'), estimatedTickets: 10, openTickets: 3 },
+          { id: 'M-103', title: 'Beta Release',         isCompleted: false, completedAt: null,                  dueDate: new Date('2026-08-01'), estimatedTickets: 20, openTickets: 1 },
+        ],
+      },
+      created_at: new Date('2026-03-15T09:00:00Z'), updated_at: new Date('2026-04-10T08:00:00Z'),
+    },
+    {
+      id: seededUuid('project', 'PRJ-003'), tenant_id: t('ORG-002'), status: 'on_hold', client_id: u('USR-101'), health_score: 31,
+      name: 'Payment Gateway Integration',
+      description: 'Integrating Razorpay and Stripe for seamless multi-currency transactions across the platform.',
+      metadata: {
+        scope: 'Integrate Stripe and Razorpay payment gateways including checkout flow, webhook handling, refund processing, and invoicing.',
+        ticketCount: 28, openTicketCount: 12, resolvedThisWeek: 0,
+        milestones: [
+          { id: 'M-201', title: 'Gateway Selection', isCompleted: true,  completedAt: new Date('2026-02-01'), dueDate: new Date('2026-02-05'), estimatedTickets: 4,  openTickets: 0  },
+          { id: 'M-202', title: 'Integration Build', isCompleted: false, completedAt: null,                  dueDate: new Date('2026-04-30'), estimatedTickets: 20, openTickets: 10 },
+          { id: 'M-203', title: 'Go-Live',           isCompleted: false, completedAt: null,                  dueDate: new Date('2026-06-30'), estimatedTickets: 8,  openTickets: 2  },
+        ],
+      },
+      created_at: new Date('2026-01-20T09:00:00Z'), updated_at: new Date('2026-04-12T16:00:00Z'),
+    },
+    {
+      id: seededUuid('project', 'PRJ-004'), tenant_id: t('ORG-001'), status: 'completed', client_id: null, health_score: 100,
+      name: 'Internal Admin Dashboard',
+      description: 'A complete admin dashboard for managing users, roles, permissions, and analytics.',
+      metadata: {
+        scope: 'Build an internal operations dashboard covering user management, role assignment, audit log, SLA configuration, and report exports.',
+        ticketCount: 55, openTicketCount: 0, resolvedThisWeek: 2,
+        milestones: [
+          { id: 'M-301', title: 'Requirements',        isCompleted: true, completedAt: new Date('2025-06-25'), dueDate: new Date('2025-06-30'), estimatedTickets: 6,  openTickets: 0 },
+          { id: 'M-302', title: 'Core Modules',        isCompleted: true, completedAt: new Date('2025-09-15'), dueDate: new Date('2025-10-01'), estimatedTickets: 22, openTickets: 0 },
+          { id: 'M-303', title: 'Analytics & Reports', isCompleted: true, completedAt: new Date('2026-02-01'), dueDate: new Date('2026-02-10'), estimatedTickets: 18, openTickets: 0 },
+          { id: 'M-304', title: 'UAT & Release',       isCompleted: true, completedAt: new Date('2026-03-15'), dueDate: new Date('2026-03-15'), estimatedTickets: 9,  openTickets: 0 },
+        ],
+      },
+      created_at: new Date('2025-06-15T09:00:00Z'), updated_at: new Date('2026-03-18T14:00:00Z'),
+    },
+    {
+      id: seededUuid('project', 'PRJ-005'), tenant_id: t('ORG-003'), status: 'cancelled', client_id: u('USR-103'), health_score: 0,
+      name: 'Legacy System Migration',
+      description: 'Migrating legacy monolith to microservices architecture. Cancelled due to budget reallocation.',
+      metadata: {
+        scope: 'Decompose the existing monolith into 6 discrete microservices.',
+        ticketCount: 18, openTicketCount: 0, resolvedThisWeek: 0,
+        milestones: [
+          { id: 'M-401', title: 'Architecture Design', isCompleted: true,  completedAt: new Date('2025-09-01'), dueDate: new Date('2025-09-15'), estimatedTickets: 8,  openTickets: 0 },
+          { id: 'M-402', title: 'Phase 1 Migration',   isCompleted: false, completedAt: null,                  dueDate: new Date('2025-12-01'), estimatedTickets: 30, openTickets: 0 },
+        ],
+      },
+      created_at: new Date('2025-08-10T09:00:00Z'), updated_at: new Date('2026-02-01T10:00:00Z'),
+    },
+    {
+      id: seededUuid('project', 'PRJ-006'), tenant_id: t('ORG-001'), status: 'active', client_id: null, health_score: 54,
+      name: 'Custom UI Appearance',
+      description: 'User should be able to customise their UI appearance based on their choice. When they log in they should see their customised UI on the screen.',
+      metadata: {
+        scope: 'User interface customisation including theme selection, colour palette, layout preferences, and font settings. Exclude client branding options from the user role.',
+        targetDate: '2026-05-26',
+        ticketCount: 8, openTicketCount: 5, resolvedThisWeek: 1,
+        milestones: [
+          { id: 'M-601', title: 'Discovery & UX Research',     isCompleted: true,  completedAt: new Date('2026-04-10'), dueDate: new Date('2026-04-12'), estimatedTickets: 3,  openTickets: 0 },
+          { id: 'M-602', title: 'Settings API & Data Model',   isCompleted: false, completedAt: null, dueDate: new Date('2026-05-02'), estimatedTickets: 8,  openTickets: 3 },
+          { id: 'M-603', title: 'Frontend Theme Engine',       isCompleted: false, completedAt: null, dueDate: new Date('2026-05-16'), estimatedTickets: 10, openTickets: 2 },
+          { id: 'M-604', title: 'QA & Client Role Exclusions', isCompleted: false, completedAt: null, dueDate: new Date('2026-05-23'), estimatedTickets: 5,  openTickets: 0 },
+          { id: 'M-605', title: 'Go-Live',                     isCompleted: false, completedAt: null, dueDate: new Date('2026-05-26'), estimatedTickets: 2,  openTickets: 0 },
+        ],
+      },
+      created_at: new Date('2026-04-20T09:00:00Z'), updated_at: new Date('2026-04-26T10:00:00Z'),
+    },
+  ];
+
+  const p = (key: string) => seededUuid('project', key);
   const ticketsData = [
     {
-      id: seededUuid('ticket', 'TKT-001'), tenant_id: t('ORG-002'), ticket_number: 'TKT-001',
+      id: seededUuid('ticket', 'TKT-001'), tenant_id: t('ORG-002'), project_id: p('PRJ-003'), ticket_number: 'TKT-001',
       title: 'Production database cluster unresponsive — all queries timing out',
       description: `Our primary PostgreSQL cluster (us-east-1) stopped responding at 03:42 UTC. All read and write queries are timing out after 30 s. The application is returning 503 errors to all users.\n\nSteps already taken:\n- Restarted the read replicas — no improvement\n- Checked CloudWatch: CPU 98%, disk I/O queue length 4200\n- Application logs show "FATAL: remaining connection slots are reserved for non-replication superuser connections"\n\nWe have ~15,000 active users affected. This is a P0 incident.`,
       status: TicketStatus.IN_PROGRESS, priority: TicketPriority.URGENT, category: TicketCategory.INCIDENT,
@@ -291,7 +400,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-16T03:44:00Z'), updated_at: new Date('2026-04-16T09:15:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-002'), tenant_id: t('ORG-003'), ticket_number: 'TKT-002',
+      id: seededUuid('ticket', 'TKT-002'), tenant_id: t('ORG-003'), project_id: p('PRJ-002'), ticket_number: 'TKT-002',
       title: 'Payment processing failing for all Stripe transactions — revenue impact',
       description: `Since approximately 14:30 UTC, all Stripe payment intents are failing with error code "card_declined" even for known good test cards. This affects checkout, subscription renewals, and manual charges.\n\nStripe dashboard shows the API keys are valid. Our webhook endpoint is receiving events but the charge never succeeds.\n\nEstimated revenue impact: £4,200 per hour.`,
       status: TicketStatus.ACKNOWLEDGED, priority: TicketPriority.URGENT, category: TicketCategory.BUG,
@@ -300,7 +409,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-16T14:32:00Z'), updated_at: new Date('2026-04-16T15:10:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-003'), tenant_id: t('ORG-002'), ticket_number: 'TKT-003',
+      id: seededUuid('ticket', 'TKT-003'), tenant_id: t('ORG-002'), project_id: p('PRJ-003'), ticket_number: 'TKT-003',
       title: 'SSO/SAML login broken for all Azure AD users after cert rotation',
       description: `Following our certificate rotation on April 14th, all users authenticating via Azure AD SAML are receiving: "SAML signature validation failed — certificate thumbprint mismatch".\n\nUsers who use email/password login are unaffected. Roughly 340 users in our organisation cannot log in.\n\nWe updated the certificate in Azure AD but did not update the SP metadata on your side. Is there a way to upload the new IdP certificate through the admin panel?`,
       status: TicketStatus.IN_PROGRESS, priority: TicketPriority.HIGH, category: TicketCategory.BUG,
@@ -309,7 +418,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-14T11:00:00Z'), updated_at: new Date('2026-04-16T08:45:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-004'), tenant_id: t('ORG-004'), ticket_number: 'TKT-004',
+      id: seededUuid('ticket', 'TKT-004'), tenant_id: t('ORG-004'), project_id: null, ticket_number: 'TKT-004',
       title: 'API rate limiting kicking in at 20 req/s instead of contracted 200 req/s',
       description: `Our integration is being rate-limited at 20 requests/second, but our Enterprise plan specifies 200 req/s. This is causing our real-time dashboard to fall significantly behind.\n\nWe are seeing HTTP 429 responses with: {"error": "rate_limit_exceeded", "limit": 20, "reset_at": "..."}. Our account ID is ACC-7821. Please investigate whether our rate limit tier is misconfigured on your end.`,
       status: TicketStatus.OPEN, priority: TicketPriority.HIGH, category: TicketCategory.BUG,
@@ -318,7 +427,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-16T09:00:00Z'), updated_at: new Date('2026-04-16T09:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-005'), tenant_id: t('ORG-002'), ticket_number: 'TKT-005',
+      id: seededUuid('ticket', 'TKT-005'), tenant_id: t('ORG-002'), project_id: p('PRJ-001'), ticket_number: 'TKT-005',
       title: 'Bulk data export stuck at 0% for exports > 10,000 rows',
       description: `When exporting reports with more than 10,000 rows, the export job starts (shows "Processing…"), then freezes at 0% indefinitely. Smaller exports work fine.\n\nWe need to export ~85,000 records for our end-of-quarter audit. The job was triggered 3 hours ago and still shows 0%.`,
       status: TicketStatus.IN_PROGRESS, priority: TicketPriority.HIGH, category: TicketCategory.BUG,
@@ -327,7 +436,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-15T09:00:00Z'), updated_at: new Date('2026-04-16T07:30:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-006'), tenant_id: t('ORG-003'), ticket_number: 'TKT-006',
+      id: seededUuid('ticket', 'TKT-006'), tenant_id: t('ORG-003'), project_id: p('PRJ-002'), ticket_number: 'TKT-006',
       title: 'File attachments exceeding 8 MB silently fail — no error shown to user',
       description: `When users attempt to attach files larger than 8 MB to a ticket, the upload spinner runs indefinitely with no error message. The attachment is never saved. This is a UX regression — previous behaviour showed a clear size-limit error.\n\nMax allowed per our plan is 25 MB per file. The silent failure is causing confusion.`,
       status: TicketStatus.OPEN, priority: TicketPriority.HIGH, category: TicketCategory.BUG,
@@ -336,7 +445,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-16T10:20:00Z'), updated_at: new Date('2026-04-16T11:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-007'), tenant_id: t('ORG-001'), ticket_number: 'TKT-007',
+      id: seededUuid('ticket', 'TKT-007'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-007',
       title: 'Email notifications not delivered when ticket is assigned to a team',
       description: `When a ticket is assigned to a team (rather than a specific agent), the "ticket assigned" email notification is not sent to any team members. Direct-to-agent assignments still work correctly.\n\nThis is causing agents to miss tickets that come in during off-hours.`,
       status: TicketStatus.OPEN, priority: TicketPriority.MEDIUM, category: TicketCategory.BUG,
@@ -345,7 +454,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-16T11:30:00Z'), updated_at: new Date('2026-04-16T11:30:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-008'), tenant_id: t('ORG-004'), ticket_number: 'TKT-008',
+      id: seededUuid('ticket', 'TKT-008'), tenant_id: t('ORG-004'), project_id: null, ticket_number: 'TKT-008',
       title: 'Knowledge base search returns irrelevant results for technical queries',
       description: `Searching for specific error codes (e.g. "ERR_CONN_RESET", "ECONNREFUSED") returns articles about unrelated topics. Exact-string queries that worked in version 2.1 are no longer matching correctly after the semantic search upgrade in 2.2.`,
       status: TicketStatus.ACKNOWLEDGED, priority: TicketPriority.MEDIUM, category: TicketCategory.BUG,
@@ -354,7 +463,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-15T13:00:00Z'), updated_at: new Date('2026-04-16T08:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-009'), tenant_id: t('ORG-001'), ticket_number: 'TKT-009',
+      id: seededUuid('ticket', 'TKT-009'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-009',
       title: 'Bulk ticket reassignment tool fails when selecting more than 50 tickets',
       description: `The "Reassign Selected" action in the ticket queue fails silently when more than 50 tickets are selected. Selecting 1–49 tickets and reassigning works as expected. The network request never fires when 50+ are selected.`,
       status: TicketStatus.OPEN, priority: TicketPriority.MEDIUM, category: TicketCategory.BUG,
@@ -363,7 +472,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-16T07:00:00Z'), updated_at: new Date('2026-04-16T07:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-010'), tenant_id: t('ORG-002'), ticket_number: 'TKT-010',
+      id: seededUuid('ticket', 'TKT-010'), tenant_id: t('ORG-002'), project_id: p('PRJ-001'), ticket_number: 'TKT-010',
       title: 'Mobile app crashes on iOS 17.4 when opening ticket detail view',
       description: `The iOS mobile app consistently crashes when tapping into a ticket detail view on devices running iOS 17.4. The app opens normally on iOS 16 and iOS 17.3. Crash log attached.\n\nCrash signature: EXC_CRASH (SIGABRT) — Thread 1: Fatal error: Unexpectedly found nil while unwrapping an Optional value.`,
       status: TicketStatus.IN_PROGRESS, priority: TicketPriority.MEDIUM, category: TicketCategory.BUG,
@@ -372,7 +481,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-13T10:00:00Z'), updated_at: new Date('2026-04-16T09:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-011'), tenant_id: t('ORG-001'), ticket_number: 'TKT-011',
+      id: seededUuid('ticket', 'TKT-011'), tenant_id: t('ORG-001'), project_id: p('PRJ-004'), ticket_number: 'TKT-011',
       title: 'Audit log not capturing field-level changes on ticket updates',
       description: `When an agent updates a ticket's priority or category, the audit log only records "ticket updated" without showing the before/after field values. The previous version showed detailed change diffs. This is blocking our compliance review.`,
       status: TicketStatus.ACKNOWLEDGED, priority: TicketPriority.MEDIUM, category: TicketCategory.BUG,
@@ -381,7 +490,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-15T08:00:00Z'), updated_at: new Date('2026-04-15T15:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-012'), tenant_id: t('ORG-001'), ticket_number: 'TKT-012',
+      id: seededUuid('ticket', 'TKT-012'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-012',
       title: 'Custom SLA policy not applied when ticket is re-opened after resolution',
       description: `When a ticket is resolved and then re-opened by the client, our custom SLA policy (4-hour response, 24-hour resolution) is not reapplied — instead the default policy kicks in. This leads to incorrect SLA breach alerts.`,
       status: TicketStatus.OPEN, priority: TicketPriority.MEDIUM, category: TicketCategory.BUG,
@@ -390,7 +499,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-16T10:00:00Z'), updated_at: new Date('2026-04-16T10:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-013'), tenant_id: t('ORG-001'), ticket_number: 'TKT-013',
+      id: seededUuid('ticket', 'TKT-013'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-013',
       title: 'Feature: Allow agents to save canned responses / reply templates',
       description: `Our team frequently sends similar replies for common issues (password resets, VPN setup, etc.). Having a library of canned responses that agents can insert and personalise would significantly reduce average handle time.\n\nWe'd ideally want: per-agent personal templates + shared team templates, with variable substitution (e.g. {{customer_name}}).`,
       status: TicketStatus.OPEN, priority: TicketPriority.LOW, category: TicketCategory.FEATURE_REQUEST,
@@ -399,7 +508,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-10T14:00:00Z'), updated_at: new Date('2026-04-14T09:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-014'), tenant_id: t('ORG-001'), ticket_number: 'TKT-014',
+      id: seededUuid('ticket', 'TKT-014'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-014',
       title: 'Feature: Configurable auto-close policy for resolved tickets',
       description: `We'd like the ability to set a per-organisation policy to automatically close tickets that have been in "Resolved" state for N days without client response. Our preferred value is 7 days.`,
       status: TicketStatus.OPEN, priority: TicketPriority.LOW, category: TicketCategory.FEATURE_REQUEST,
@@ -408,7 +517,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-12T11:00:00Z'), updated_at: new Date('2026-04-12T11:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-015'), tenant_id: t('ORG-003'), ticket_number: 'TKT-015',
+      id: seededUuid('ticket', 'TKT-015'), tenant_id: t('ORG-003'), project_id: p('PRJ-002'), ticket_number: 'TKT-015',
       title: 'Feature: Webhook support for ticket status changes',
       description: `We need to be able to trigger external webhooks when a ticket changes status (particularly OPEN → IN_PROGRESS and any → RESOLVED). This would let us sync ticket state to our internal Jira and Slack.`,
       status: TicketStatus.ACKNOWLEDGED, priority: TicketPriority.LOW, category: TicketCategory.FEATURE_REQUEST,
@@ -417,7 +526,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-08T09:00:00Z'), updated_at: new Date('2026-04-11T14:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-016'), tenant_id: t('ORG-003'), ticket_number: 'TKT-016',
+      id: seededUuid('ticket', 'TKT-016'), tenant_id: t('ORG-003'), project_id: p('PRJ-005'), ticket_number: 'TKT-016',
       title: 'How do I export SLA compliance data to CSV for board reporting?',
       description: `I need to produce a monthly SLA compliance report for our board meeting. I can see the charts on the analytics page but cannot find a CSV export button. Is this available in our plan (Business)?`,
       status: TicketStatus.RESOLVED, priority: TicketPriority.LOW, category: TicketCategory.QUESTION,
@@ -426,7 +535,7 @@ async function main() {
       resolved_at: new Date('2026-04-12T10:00:00Z'), closed_at: null, created_at: new Date('2026-04-10T11:00:00Z'), updated_at: new Date('2026-04-12T10:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-017'), tenant_id: t('ORG-002'), ticket_number: 'TKT-017',
+      id: seededUuid('ticket', 'TKT-017'), tenant_id: t('ORG-002'), project_id: p('PRJ-001'), ticket_number: 'TKT-017',
       title: 'Can we set different SLA policies for different ticket categories?',
       description: `We want critical bugs to have a 1-hour response SLA while feature requests get a 48-hour response. Is per-category SLA configuration supported?`,
       status: TicketStatus.RESOLVED, priority: TicketPriority.LOW, category: TicketCategory.QUESTION,
@@ -435,7 +544,7 @@ async function main() {
       resolved_at: new Date('2026-04-10T14:00:00Z'), closed_at: null, created_at: new Date('2026-04-08T10:00:00Z'), updated_at: new Date('2026-04-10T14:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-018'), tenant_id: t('ORG-002'), ticket_number: 'TKT-018',
+      id: seededUuid('ticket', 'TKT-018'), tenant_id: t('ORG-002'), project_id: p('PRJ-003'), ticket_number: 'TKT-018',
       title: '2FA SMS codes not delivered to +44 UK numbers',
       description: `Two-factor authentication SMS codes are not being delivered to UK phone numbers (+44 prefix). US and Canadian numbers work fine. Affected users cannot log in.`,
       status: TicketStatus.RESOLVED, priority: TicketPriority.HIGH, category: TicketCategory.BUG,
@@ -444,7 +553,7 @@ async function main() {
       resolved_at: new Date('2026-04-11T16:00:00Z'), closed_at: null, created_at: new Date('2026-04-09T09:30:00Z'), updated_at: new Date('2026-04-11T16:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-019'), tenant_id: t('ORG-002'), ticket_number: 'TKT-019',
+      id: seededUuid('ticket', 'TKT-019'), tenant_id: t('ORG-002'), project_id: p('PRJ-001'), ticket_number: 'TKT-019',
       title: 'Analytics dashboard charts not rendering in Safari 17',
       description: `All chart visualisations on the analytics page appear blank in Safari 17 (macOS Sonoma). The data loads (visible in DevTools network tab) but the SVG canvas is 0×0. Chrome and Firefox are unaffected.`,
       status: TicketStatus.RESOLVED, priority: TicketPriority.MEDIUM, category: TicketCategory.BUG,
@@ -453,7 +562,7 @@ async function main() {
       resolved_at: new Date('2026-04-09T11:00:00Z'), closed_at: null, created_at: new Date('2026-04-06T14:00:00Z'), updated_at: new Date('2026-04-09T11:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-020'), tenant_id: t('ORG-003'), ticket_number: 'TKT-020',
+      id: seededUuid('ticket', 'TKT-020'), tenant_id: t('ORG-003'), project_id: p('PRJ-002'), ticket_number: 'TKT-020',
       title: 'Password reset link expiry too short — users unable to complete reset',
       description: `Users who don't check their email promptly find that the password reset link has already expired. The current expiry appears to be 15 minutes. Industry standard is 1 hour.`,
       status: TicketStatus.CLOSED, priority: TicketPriority.LOW, category: TicketCategory.BUG,
@@ -462,7 +571,7 @@ async function main() {
       resolved_at: new Date('2026-03-22T14:00:00Z'), closed_at: new Date('2026-03-25T10:00:00Z'), created_at: new Date('2026-03-19T09:00:00Z'), updated_at: new Date('2026-03-25T10:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-021'), tenant_id: t('ORG-002'), ticket_number: 'TKT-021',
+      id: seededUuid('ticket', 'TKT-021'), tenant_id: t('ORG-002'), project_id: p('PRJ-003'), ticket_number: 'TKT-021',
       title: 'Billing page shows incorrect plan tier after downgrade',
       description: `After downgrading from Enterprise to Business, the billing page still shows "Enterprise Plan" for 3 days. Resolved itself eventually — likely a cache issue.`,
       status: TicketStatus.CLOSED, priority: TicketPriority.LOW, category: TicketCategory.BUG,
@@ -471,7 +580,7 @@ async function main() {
       resolved_at: new Date('2026-03-07T15:00:00Z'), closed_at: new Date('2026-03-10T09:00:00Z'), created_at: new Date('2026-03-03T11:00:00Z'), updated_at: new Date('2026-03-10T09:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-022'), tenant_id: t('ORG-001'), ticket_number: 'TKT-022',
+      id: seededUuid('ticket', 'TKT-022'), tenant_id: t('ORG-001'), project_id: p('PRJ-004'), ticket_number: 'TKT-022',
       title: 'Onboarding: Configure SSO and custom domain for Sunrise Healthcare',
       description: `New Enterprise client onboarding task. Configure Azure AD SSO integration and set up custom domain (support.sunrisehealthcare.org) for the customer portal.\n\nChecklist:\n- [ ] Provision tenant in production\n- [ ] Configure Azure AD SAML SP metadata\n- [ ] DNS CNAME setup\n- [ ] Test end-to-end login flow\n- [ ] Send welcome pack to Rachel Kim (IT Admin)`,
       status: TicketStatus.IN_PROGRESS, priority: TicketPriority.MEDIUM, category: TicketCategory.TASK,
@@ -480,7 +589,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-14T09:00:00Z'), updated_at: new Date('2026-04-16T08:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-023'), tenant_id: t('ORG-001'), ticket_number: 'TKT-023',
+      id: seededUuid('ticket', 'TKT-023'), tenant_id: t('ORG-001'), project_id: p('PRJ-004'), ticket_number: 'TKT-023',
       title: 'Q2 SLA policy review — update thresholds for all Enterprise clients',
       description: `Quarterly review of SLA thresholds across all Enterprise tenants. Proposed changes:\n- Critical: response 30 min → 15 min\n- High: response 2 h → 1 h\n- Enterprise resolution SLA: 4 h → 2 h for critical\n\nRequires approval from Nina Patel and sign-off from each account owner.`,
       status: TicketStatus.OPEN, priority: TicketPriority.MEDIUM, category: TicketCategory.TASK,
@@ -489,7 +598,7 @@ async function main() {
       resolved_at: null, closed_at: null, created_at: new Date('2026-04-15T14:00:00Z'), updated_at: new Date('2026-04-15T14:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-024'), tenant_id: t('ORG-006'), ticket_number: 'TKT-024',
+      id: seededUuid('ticket', 'TKT-024'), tenant_id: t('ORG-006'), project_id: null, ticket_number: 'TKT-024',
       title: 'Apex Logistics: missing invoice for March 2026',
       description: 'Client reports they have not received the March 2026 invoice. Please resend to accounts@apexlogistics.com.',
       status: TicketStatus.RESOLVED, priority: TicketPriority.LOW, category: TicketCategory.BILLING,
@@ -498,7 +607,7 @@ async function main() {
       resolved_at: new Date('2026-04-04T11:00:00Z'), closed_at: null, created_at: new Date('2026-04-02T09:00:00Z'), updated_at: new Date('2026-04-04T11:00:00Z'),
     },
     {
-      id: seededUuid('ticket', 'TKT-025'), tenant_id: t('ORG-004'), ticket_number: 'TKT-025',
+      id: seededUuid('ticket', 'TKT-025'), tenant_id: t('ORG-004'), project_id: null, ticket_number: 'TKT-025',
       title: 'Global Finance: 2FA enforcement not applying to SSO logins',
       description: 'Our 2FA enforcement policy should apply to all login methods including SSO. Currently SSO users bypass 2FA. This is a compliance requirement.',
       status: TicketStatus.OPEN, priority: TicketPriority.HIGH, category: TicketCategory.BUG,
@@ -508,11 +617,130 @@ async function main() {
     },
   ];
 
+  // ── PRJ-006 tickets (Custom UI Appearance — ORG-001) ──────────────────────
+  // Scoped to ORG-001 tenant; tagged for milestone matching; 3 SLA-breached for churn/health signal
+  const prj006Tickets = [
+    {
+      id: seededUuid('ticket', 'TKT-051'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-051',
+      title: 'Theme settings API endpoint returns 500 on PATCH',
+      description: 'When a user updates their appearance preferences via the settings API, the PATCH /users/me/preferences endpoint throws an internal server error. Affects all theme customisation flows.',
+      status: TicketStatus.IN_PROGRESS, priority: TicketPriority.HIGH, category: TicketCategory.BUG,
+      requester_id: u('USR-004'), assignee_id: u('USR-003'),
+      tags: ['settings-api', 'appearance', 'theme', 'M-602'],
+      sla_policy_id: seededUuid('sla', 'SLA-002'),
+      sla_deadline_at: new Date('2026-04-22T09:00:00Z'), // breached
+      first_response_at: new Date('2026-04-20T10:30:00Z'),
+      resolved_at: null, closed_at: null,
+      created_at: new Date('2026-04-20T09:00:00Z'), updated_at: new Date('2026-04-21T14:00:00Z'),
+    },
+    {
+      id: seededUuid('ticket', 'TKT-052'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-052',
+      title: 'Dark mode preference not persisted across sessions',
+      description: 'Users who select dark mode in appearance settings find the theme resets to light on next login. The preference is not being saved to the user profile.',
+      status: TicketStatus.OPEN, priority: TicketPriority.HIGH, category: TicketCategory.BUG,
+      requester_id: u('USR-005'), assignee_id: u('USR-002'),
+      tags: ['dark-mode', 'appearance', 'persistence', 'theme', 'M-603'],
+      sla_policy_id: seededUuid('sla', 'SLA-002'),
+      sla_deadline_at: new Date('2026-04-23T09:00:00Z'), // breached
+      first_response_at: null,
+      resolved_at: null, closed_at: null,
+      created_at: new Date('2026-04-21T08:00:00Z'), updated_at: new Date('2026-04-21T08:00:00Z'),
+    },
+    {
+      id: seededUuid('ticket', 'TKT-053'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-053',
+      title: 'Custom accent colour picker not rendering in Safari',
+      description: 'The colour picker component for accent colour selection in user appearance settings is blank in Safari 17.x. Works correctly in Chrome and Firefox.',
+      status: TicketStatus.OPEN, priority: TicketPriority.MEDIUM, category: TicketCategory.BUG,
+      requester_id: u('USR-006'), assignee_id: null,
+      tags: ['colour-picker', 'safari', 'appearance', 'frontend', 'M-603'],
+      sla_policy_id: seededUuid('sla', 'SLA-003'),
+      sla_deadline_at: new Date('2026-04-24T09:00:00Z'), // breached
+      first_response_at: null,
+      resolved_at: null, closed_at: null,
+      created_at: new Date('2026-04-22T10:00:00Z'), updated_at: new Date('2026-04-22T10:00:00Z'),
+    },
+    {
+      id: seededUuid('ticket', 'TKT-054'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-054',
+      title: 'Layout density option (compact/comfortable) required in user settings',
+      description: 'Feature request from internal agents: allow users to toggle between compact and comfortable layout density in their appearance preferences. Should apply to ticket list and table views.',
+      status: TicketStatus.OPEN, priority: TicketPriority.MEDIUM, category: TicketCategory.FEATURE_REQUEST,
+      requester_id: u('USR-001'), assignee_id: u('USR-003'),
+      tags: ['layout', 'density', 'appearance', 'user-settings', 'M-602'],
+      sla_policy_id: seededUuid('sla', 'SLA-003'),
+      sla_deadline_at: new Date('2026-05-05T09:00:00Z'),
+      first_response_at: new Date('2026-04-23T09:30:00Z'),
+      resolved_at: null, closed_at: null,
+      created_at: new Date('2026-04-23T09:00:00Z'), updated_at: new Date('2026-04-23T14:00:00Z'),
+    },
+    {
+      id: seededUuid('ticket', 'TKT-055'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-055',
+      title: 'Font size preference should apply to KB article body text',
+      description: 'When a user sets a preferred font size in appearance settings, the setting should also apply to knowledge base article content, not just the main UI.',
+      status: TicketStatus.OPEN, priority: TicketPriority.LOW, category: TicketCategory.FEATURE_REQUEST,
+      requester_id: u('USR-002'), assignee_id: null,
+      tags: ['font', 'appearance', 'knowledge-base', 'user-settings', 'M-603'],
+      sla_policy_id: seededUuid('sla', 'SLA-004'),
+      sla_deadline_at: new Date('2026-05-10T09:00:00Z'),
+      first_response_at: null,
+      resolved_at: null, closed_at: null,
+      created_at: new Date('2026-04-24T11:00:00Z'), updated_at: new Date('2026-04-24T11:00:00Z'),
+    },
+    {
+      id: seededUuid('ticket', 'TKT-056'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-056',
+      title: 'Client role should not have access to branding customisation options',
+      description: 'Users with the CLIENT role can currently access the branding customisation tab in appearance settings. Per scope, branding options must be restricted to ADMIN and LEAD roles only.',
+      status: TicketStatus.IN_PROGRESS, priority: TicketPriority.URGENT, category: TicketCategory.BUG,
+      requester_id: u('USR-001'), assignee_id: u('USR-002'),
+      tags: ['rbac', 'branding', 'appearance', 'client-role', 'M-604'],
+      sla_policy_id: seededUuid('sla', 'SLA-001'),
+      sla_deadline_at: new Date('2026-04-27T17:00:00Z'),
+      first_response_at: new Date('2026-04-24T12:00:00Z'),
+      resolved_at: null, closed_at: null,
+      created_at: new Date('2026-04-24T11:30:00Z'), updated_at: new Date('2026-04-25T09:00:00Z'),
+    },
+    {
+      id: seededUuid('ticket', 'TKT-057'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-057',
+      title: 'Appearance settings should preview changes in real-time before saving',
+      description: 'Currently the user must save appearance changes and reload to see them. A live preview panel showing how the UI will look before confirming would significantly improve UX.',
+      status: TicketStatus.ACKNOWLEDGED, priority: TicketPriority.MEDIUM, category: TicketCategory.FEATURE_REQUEST,
+      requester_id: u('USR-003'), assignee_id: u('USR-004'),
+      tags: ['preview', 'appearance', 'ux', 'user-settings', 'M-603'],
+      sla_policy_id: seededUuid('sla', 'SLA-003'),
+      sla_deadline_at: new Date('2026-05-08T09:00:00Z'),
+      first_response_at: new Date('2026-04-25T08:30:00Z'),
+      resolved_at: null, closed_at: null,
+      created_at: new Date('2026-04-24T15:00:00Z'), updated_at: new Date('2026-04-25T08:30:00Z'),
+    },
+    {
+      id: seededUuid('ticket', 'TKT-058'), tenant_id: t('ORG-001'), project_id: p('PRJ-006'), ticket_number: 'TKT-058',
+      title: 'Theme reset button clears all preferences without confirmation dialog',
+      description: 'The "Reset to Default" button in appearance settings immediately clears all user preferences without showing a confirmation dialog. Users have accidentally lost their settings.',
+      status: TicketStatus.RESOLVED, priority: TicketPriority.LOW, category: TicketCategory.BUG,
+      requester_id: u('USR-004'), assignee_id: u('USR-003'),
+      tags: ['theme', 'reset', 'appearance', 'confirmation', 'M-602'],
+      sla_policy_id: seededUuid('sla', 'SLA-004'),
+      sla_deadline_at: new Date('2026-04-28T09:00:00Z'),
+      first_response_at: new Date('2026-04-23T10:00:00Z'),
+      resolved_at: new Date('2026-04-25T16:00:00Z'), closed_at: null,
+      created_at: new Date('2026-04-23T09:30:00Z'), updated_at: new Date('2026-04-25T16:00:00Z'),
+    },
+  ];
+
+  // Insert projects first (tickets FK-depend on projects)
+  for (const project of projectsData) {
+    await prisma.project.create({ data: project as any });
+  }
+  console.log(`✅ Created ${projectsData.length} projects`);
+
   for (const ticket of ticketsData) {
     await prisma.ticket.create({ data: ticket as any });
   }
   console.log(`✅ Created ${ticketsData.length} tickets`);
 
+  for (const ticket of prj006Tickets) {
+    await prisma.ticket.create({ data: ticket as any });
+  }
+  console.log(`✅ Created ${prj006Tickets.length} PRJ-006 tickets`);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 8. COMMENTS
@@ -838,93 +1066,6 @@ async function main() {
   }
   console.log(`✅ Created ${kbArticlesData.length} KB articles`);
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 11. PROJECTS
-  // ═══════════════════════════════════════════════════════════════════════════
-  const projectsData = [
-    {
-      id: seededUuid('project', 'PRJ-001'), tenant_id: t('ORG-002'), status: 'active', client_id: u('USR-101'), health_score: 62,
-      name: 'Customer Support Platform',
-      description: 'Building a scalable customer support system with AI-powered ticket routing and analytics dashboard.',
-      metadata: {
-        scope: 'Deliver a multi-tenant SaaS support platform including ticket management, SLA enforcement, AI-assisted triage, and a customer-facing portal.',
-        ticketCount: 42, openTicketCount: 8, resolvedThisWeek: 3,
-        milestones: [
-          { id: 'M-001', title: 'Kick-off & Requirements', isCompleted: true,  completedAt: new Date('2025-10-25'), dueDate: new Date('2025-10-30'), estimatedTickets: 5,  openTickets: 0 },
-          { id: 'M-002', title: 'UI Design & Prototyping', isCompleted: true,  completedAt: new Date('2025-11-15'), dueDate: new Date('2025-11-20'), estimatedTickets: 12, openTickets: 0 },
-          { id: 'M-003', title: 'API Development',         isCompleted: true,  completedAt: new Date('2026-02-10'), dueDate: new Date('2026-02-15'), estimatedTickets: 18, openTickets: 0 },
-          { id: 'M-004', title: 'AI Integration',          isCompleted: false, completedAt: null,                  dueDate: new Date('2026-05-01'), estimatedTickets: 14, openTickets: 6 },
-          { id: 'M-005', title: 'Go-Live',                 isCompleted: false, completedAt: null,                  dueDate: new Date('2026-06-15'), estimatedTickets: 8,  openTickets: 2 },
-        ],
-      },
-      created_at: new Date('2025-10-20T09:00:00Z'), updated_at: new Date('2026-04-15T11:30:00Z'),
-    },
-    {
-      id: seededUuid('project', 'PRJ-002'), tenant_id: t('ORG-003'), status: 'planning', client_id: u('USR-103'), health_score: 88,
-      name: 'Mobile App Revamp',
-      description: 'Redesigning the mobile application with improved UX and performance optimizations for iOS and Android.',
-      metadata: {
-        scope: 'Redesign and rebuild the iOS and Android mobile apps using React Native.',
-        ticketCount: 15, openTicketCount: 4, resolvedThisWeek: 1,
-        milestones: [
-          { id: 'M-101', title: 'Discovery & Research', isCompleted: true,  completedAt: new Date('2026-03-25'), dueDate: new Date('2026-03-30'), estimatedTickets: 6,  openTickets: 0 },
-          { id: 'M-102', title: 'UX Design',            isCompleted: false, completedAt: null,                  dueDate: new Date('2026-05-10'), estimatedTickets: 10, openTickets: 3 },
-          { id: 'M-103', title: 'Beta Release',         isCompleted: false, completedAt: null,                  dueDate: new Date('2026-08-01'), estimatedTickets: 20, openTickets: 1 },
-        ],
-      },
-      created_at: new Date('2026-03-15T09:00:00Z'), updated_at: new Date('2026-04-10T08:00:00Z'),
-    },
-    {
-      id: seededUuid('project', 'PRJ-003'), tenant_id: t('ORG-002'), status: 'on_hold', client_id: u('USR-101'), health_score: 31,
-      name: 'Payment Gateway Integration',
-      description: 'Integrating Razorpay and Stripe for seamless multi-currency transactions across the platform.',
-      metadata: {
-        scope: 'Integrate Stripe and Razorpay payment gateways including checkout flow, webhook handling, refund processing, and invoicing.',
-        ticketCount: 28, openTicketCount: 12, resolvedThisWeek: 0,
-        milestones: [
-          { id: 'M-201', title: 'Gateway Selection', isCompleted: true,  completedAt: new Date('2026-02-01'), dueDate: new Date('2026-02-05'), estimatedTickets: 4,  openTickets: 0  },
-          { id: 'M-202', title: 'Integration Build', isCompleted: false, completedAt: null,                  dueDate: new Date('2026-04-30'), estimatedTickets: 20, openTickets: 10 },
-          { id: 'M-203', title: 'Go-Live',           isCompleted: false, completedAt: null,                  dueDate: new Date('2026-06-30'), estimatedTickets: 8,  openTickets: 2  },
-        ],
-      },
-      created_at: new Date('2026-01-20T09:00:00Z'), updated_at: new Date('2026-04-12T16:00:00Z'),
-    },
-    {
-      id: seededUuid('project', 'PRJ-004'), tenant_id: t('ORG-001'), status: 'completed', client_id: null, health_score: 100,
-      name: 'Internal Admin Dashboard',
-      description: 'A complete admin dashboard for managing users, roles, permissions, and analytics.',
-      metadata: {
-        scope: 'Build an internal operations dashboard covering user management, role assignment, audit log, SLA configuration, and report exports.',
-        ticketCount: 55, openTicketCount: 0, resolvedThisWeek: 2,
-        milestones: [
-          { id: 'M-301', title: 'Requirements',       isCompleted: true, completedAt: new Date('2025-06-25'), dueDate: new Date('2025-06-30'), estimatedTickets: 6,  openTickets: 0 },
-          { id: 'M-302', title: 'Core Modules',       isCompleted: true, completedAt: new Date('2025-09-15'), dueDate: new Date('2025-10-01'), estimatedTickets: 22, openTickets: 0 },
-          { id: 'M-303', title: 'Analytics & Reports',isCompleted: true, completedAt: new Date('2026-02-01'), dueDate: new Date('2026-02-10'), estimatedTickets: 18, openTickets: 0 },
-          { id: 'M-304', title: 'UAT & Release',      isCompleted: true, completedAt: new Date('2026-03-15'), dueDate: new Date('2026-03-15'), estimatedTickets: 9,  openTickets: 0 },
-        ],
-      },
-      created_at: new Date('2025-06-15T09:00:00Z'), updated_at: new Date('2026-03-18T14:00:00Z'),
-    },
-    {
-      id: seededUuid('project', 'PRJ-005'), tenant_id: t('ORG-003'), status: 'cancelled', client_id: u('USR-103'), health_score: 0,
-      name: 'Legacy System Migration',
-      description: 'Migrating legacy monolith to microservices architecture. Cancelled due to budget reallocation.',
-      metadata: {
-        scope: 'Decompose the existing monolith into 6 discrete microservices.',
-        ticketCount: 18, openTicketCount: 0, resolvedThisWeek: 0,
-        milestones: [
-          { id: 'M-401', title: 'Architecture Design', isCompleted: true,  completedAt: new Date('2025-09-01'), dueDate: new Date('2025-09-15'), estimatedTickets: 8,  openTickets: 0 },
-          { id: 'M-402', title: 'Phase 1 Migration',   isCompleted: false, completedAt: null,                  dueDate: new Date('2025-12-01'), estimatedTickets: 30, openTickets: 0 },
-        ],
-      },
-      created_at: new Date('2025-08-10T09:00:00Z'), updated_at: new Date('2026-02-01T10:00:00Z'),
-    },
-  ];
-
-  for (const project of projectsData) {
-    await prisma.project.create({ data: project as any });
-  }
-  console.log(`✅ Created ${projectsData.length} projects`);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 11. DELIVERY ITEMS  (mapped from Delivery Features)

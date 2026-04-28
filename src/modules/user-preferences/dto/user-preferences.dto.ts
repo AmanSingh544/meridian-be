@@ -31,6 +31,12 @@ export class UserPreferencesDto {
 
   @ApiPropertyOptional({ example: true })
   email_on_sla_warning?: boolean;
+
+  @ApiPropertyOptional({ example: true })
+  email_on_escalation?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  email_daily_digest?: boolean;
 }
 
 export class UpdateUserPreferencesDto {
@@ -73,4 +79,24 @@ export class UpdateUserPreferencesDto {
   @IsOptional()
   @IsBoolean()
   browser_push?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  email_on_ticket_assigned?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  email_on_sla_warning?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  email_on_escalation?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  @IsBoolean()
+  email_daily_digest?: boolean;
 }

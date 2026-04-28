@@ -1,5 +1,8 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsArray, ValidateNested, IsDateString, IsEnum } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+// ── Task DTOs ─────────────────────────────────────────────────────────────────
 
 export class UpdateOnboardingTaskDto {
   @ApiPropertyOptional({ example: 'DONE', enum: ['PENDING', 'IN_PROGRESS', 'DONE', 'BLOCKED'] })
@@ -12,6 +15,66 @@ export class UpdateOnboardingTaskDto {
   @IsString()
   notes?: string;
 }
+
+export class CreateOnboardingTaskDto {
+  @ApiProperty({ example: 'DNS cutover' })
+  @IsString()
+  title: string;
+
+  @ApiPropertyOptional({ example: 'Update DNS records to point to Meridian portal.' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ example: 'DELIVERY', enum: ['CLIENT', 'DELIVERY'], default: 'DELIVERY' })
+  @IsOptional()
+  @IsEnum(['CLIENT', 'DELIVERY'])
+  owner?: 'CLIENT' | 'DELIVERY';
+
+  @ApiPropertyOptional({ example: '2026-06-01T00:00:00.000Z' })
+  @IsOptional()
+  @IsDateString()
+  due_date?: string;
+}
+
+// ── Project DTOs ──────────────────────────────────────────────────────────────
+
+export class CreateOnboardingProjectDto {
+  @ApiProperty({ example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', description: 'Tenant/Organisation ID' })
+  @IsString()
+  organizationId: string;
+
+  @ApiPropertyOptional({ example: '2026-07-01T00:00:00.000Z' })
+  @IsOptional()
+  @IsDateString()
+  goLiveDate?: string;
+
+  @ApiPropertyOptional({ example: 'IN_PROGRESS', enum: ['IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'CANCELLED'] })
+  @IsOptional()
+  @IsEnum(['IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'CANCELLED'])
+  status?: string;
+
+  @ApiPropertyOptional({ type: [CreateOnboardingTaskDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateOnboardingTaskDto)
+  tasks?: CreateOnboardingTaskDto[];
+}
+
+export class UpdateOnboardingProjectDto {
+  @ApiPropertyOptional({ example: '2026-07-15T00:00:00.000Z' })
+  @IsOptional()
+  @IsDateString()
+  goLiveDate?: string;
+
+  @ApiPropertyOptional({ example: 'ON_HOLD', enum: ['IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'CANCELLED'] })
+  @IsOptional()
+  @IsEnum(['IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'CANCELLED'])
+  status?: string;
+}
+
+// ── Response DTOs ─────────────────────────────────────────────────────────────
 
 export class OnboardingTaskDto {
   @ApiProperty({ example: '339b6200-6a9c-408d-b58f-454284001c86' })

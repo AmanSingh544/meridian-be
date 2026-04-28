@@ -1,4 +1,4 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateDeliveryFeatureDto {
@@ -11,7 +11,7 @@ export class CreateDeliveryFeatureDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ example: 'backlog' })
+  @ApiPropertyOptional({ example: 'BACKLOG' })
   @IsOptional()
   @IsString()
   status?: string;
@@ -20,6 +20,21 @@ export class CreateDeliveryFeatureDto {
   @IsOptional()
   @IsString()
   priority?: string;
+
+  @ApiPropertyOptional({ example: 'AI' })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({ example: 'Q2 2026' })
+  @IsOptional()
+  @IsString()
+  quarter?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  is_public?: boolean;
 }
 
 export class UpdateDeliveryFeatureDto {
@@ -28,7 +43,7 @@ export class UpdateDeliveryFeatureDto {
   @IsString()
   title?: string;
 
-  @ApiPropertyOptional({ example: 'in_progress' })
+  @ApiPropertyOptional({ example: 'IN_PROGRESS' })
   @IsOptional()
   @IsString()
   status?: string;
@@ -37,6 +52,21 @@ export class UpdateDeliveryFeatureDto {
   @IsOptional()
   @IsString()
   priority?: string;
+
+  @ApiPropertyOptional({ example: 'AI' })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({ example: 'Q2 2026' })
+  @IsOptional()
+  @IsString()
+  quarter?: string;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  is_public?: boolean;
 }
 
 export class DeliveryFeatureResponseDto {
@@ -49,11 +79,20 @@ export class DeliveryFeatureResponseDto {
   @ApiProperty({ example: 'Add dark mode across the portal', nullable: true })
   description: string | null;
 
-  @ApiProperty({ example: 'in_progress' })
+  @ApiProperty({ example: 'IN_PROGRESS' })
   status: string;
 
   @ApiProperty({ example: 'high' })
   priority: string;
+
+  @ApiProperty({ example: 'AI', nullable: true })
+  category: string | null;
+
+  @ApiProperty({ example: 'Q2 2026', nullable: true })
+  quarter: string | null;
+
+  @ApiProperty({ example: true })
+  is_public: boolean;
 
   @ApiProperty({ example: '2026-04-16T10:00:00Z' })
   created_at: string;

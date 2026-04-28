@@ -46,6 +46,41 @@ export class AiService {
     return !!this.client;
   }
 
+  // ── JSON parsing helpers ──────────────────────────────────────────────────
+
+  /** Strip markdown fences and extract the first complete JSON object/array. */
+  private parseJson(raw: string): any {
+    // Remove markdown code fences
+    let clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+
+    // Try direct parse first
+    try {
+      return JSON.parse(clean);
+    } catch {
+      // Extract the first balanced {...} block to handle trailing text / truncation
+      const start = clean.indexOf('{');
+      if (start === -1) throw new SyntaxError('No JSON object found in response');
+
+      let depth = 0;
+      let inString = false;
+      let escape = false;
+      let end = -1;
+
+      for (let i = start; i < clean.length; i++) {
+        const ch = clean[i];
+        if (escape) { escape = false; continue; }
+        if (ch === '\\' && inString) { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
+      }
+
+      if (end !== -1) return JSON.parse(clean.slice(start, end + 1));
+      throw new SyntaxError('Could not extract complete JSON from response');
+    }
+  }
+
   // ── Core chat call ────────────────────────────────────────────────────────
 
   private async chat(
@@ -76,8 +111,15 @@ export class AiService {
     for (const m of chain) {
       try {
         const response = await tryModel(m);
+        // OpenRouter sometimes returns 200 with an error body instead of choices
+        if (!response.choices?.length) {
+          const routerErr = (response as any).error;
+          const fakeErr: any = new Error(routerErr?.message ?? 'Empty choices in response');
+          fakeErr.status = routerErr?.code ?? 503;
+          throw fakeErr;
+        }
         if (m !== model) this.logger.warn(`chat: primary ${model} failed — used fallback ${m}`);
-        return response.choices[0]?.message?.content ?? '';
+        return response.choices[0].message?.content ?? '';
       } catch (err: any) {
         const status = err?.status ?? err?.response?.status;
         // 400/404: model-specific rejection (unsupported params, bad slug)
@@ -118,9 +160,7 @@ export class AiService {
                 { json: true, maxTokens: 512 },
               );
 
-      // Strip markdown fences if model wraps response despite json mode
-      const clean = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-      const parsed = JSON.parse(clean);
+      const parsed = this.parseJson(raw);
 
       return {
         category: parsed.category ?? 'SUPPORT',
@@ -299,9 +339,9 @@ Respond with:
   "title": "article title",
   "content": "full markdown article content"
 }`,
-        { json: true, maxTokens: 1200 },
+        { json: true, maxTokens: 2048 },
       );
-      const parsed = JSON.parse(raw);
+      const parsed = this.parseJson(raw);
       return { ...parsed, provider: MODEL_GENERATIVE };
     } catch (err) {
       this.logger.error(`generateKbDraft failed: ${err.message}`);
@@ -311,14 +351,19 @@ Respond with:
 
   // ── Route suggestion ──────────────────────────────────────────────────────
 
-  async suggestRoute(ticketTitle: string, ticketDesc: string, agents: Array<{ id: string; name: string; skills: string[] }>) {
-    if (!this.isAvailable) return { agent_id: null, reasoning: '', provider: 'none' };
+  async suggestRoute(
+    ticketTitle: string,
+    ticketDesc: string,
+    agents: Array<{ id: string; name: string; skills: string[] }>,
+  ): Promise<{ rankings: Array<{ agent_id: string; confidence: number; reasoning: string }>; provider: string }> {
+    const empty = { rankings: [], provider: 'none' };
+    if (!this.isAvailable || agents.length === 0) return empty;
 
     try {
       const raw = await this.chat(
         MODEL_ANALYTICAL,
         'You are a ticket routing engine. Respond ONLY with valid JSON.',
-        `Pick the best agent for this ticket.
+        `Rank ALL agents for this ticket from best to worst fit.
 
 Ticket: ${ticketTitle}
 Description: ${ticketDesc}
@@ -326,18 +371,23 @@ Description: ${ticketDesc}
 Agents:
 ${agents.map((a) => `- id: ${a.id}, name: ${a.name}, skills: ${a.skills.join(', ')}`).join('\n')}
 
-Respond with:
+Respond with a JSON object:
 {
-  "agent_id": "the chosen agent id or null",
-  "reasoning": "one sentence explanation"
-}`,
-        { json: true, maxTokens: 256 },
+  "rankings": [
+    { "agent_id": "<id>", "confidence": <0-100 integer>, "reasoning": "<one sentence>" }
+  ]
+}
+
+Include every agent. Sort descending by confidence.`,
+        { json: true, maxTokens: 512 },
       );
-      const parsed = JSON.parse(raw);
-      return { ...parsed, provider: MODEL_ANALYTICAL };
+      const parsed = this.parseJson(raw);
+      const rankings: Array<{ agent_id: string; confidence: number; reasoning: string }> =
+        Array.isArray(parsed?.rankings) ? parsed.rankings : [];
+      return { rankings, provider: MODEL_ANALYTICAL };
     } catch (err) {
       this.logger.error(`suggestRoute failed: ${err.message}`);
-      return { agent_id: null, reasoning: '', provider: MODEL_ANALYTICAL };
+      return { rankings: [], provider: MODEL_ANALYTICAL };
     }
   }
 

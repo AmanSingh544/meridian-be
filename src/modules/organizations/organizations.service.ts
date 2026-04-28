@@ -11,6 +11,7 @@ export class OrganizationsService {
       slug: org.slug,
       name: org.name,
       plan: org.plan,
+      is_active: org.is_active,
       settings: org.settings,
       branding: org.branding,
       created_at: org.created_at,
@@ -67,6 +68,7 @@ export class OrganizationsService {
     if (dto.plan !== undefined) updateData.plan = dto.plan;
     if (dto.settings !== undefined) updateData.settings = dto.settings;
     if (dto.branding !== undefined) updateData.branding = dto.branding;
+    if (dto.isActive !== undefined) updateData.is_active = dto.isActive;
 
     const updated = await this.prisma.tenant.update({
       where: { id },

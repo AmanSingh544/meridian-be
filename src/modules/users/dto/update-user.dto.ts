@@ -1,6 +1,13 @@
-import { IsEmail, IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsEmail, IsString, IsOptional, IsEnum, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from './create-user.dto';
+
+export enum InternalSubRole {
+  DELIVERY = 'DELIVERY',
+  SUPPORT = 'SUPPORT',
+  OPERATIONS = 'OPERATIONS',
+  ENGINEERING = 'ENGINEERING',
+}
 
 export class UpdateUserDto {
   @ApiPropertyOptional({
@@ -54,4 +61,45 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   avatar_url?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether the user account is active',
+    example: true,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Internal sub-role within the organisation',
+    enum: InternalSubRole,
+    example: InternalSubRole.DELIVERY,
+  })
+  @IsOptional()
+  @IsString()
+  internalSubRole?: string;
+
+  @ApiPropertyOptional({
+    description: 'Department the user belongs to',
+    example: 'Delivery',
+  })
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @ApiPropertyOptional({
+    description: 'User timezone (IANA format)',
+    example: 'Asia/Kolkata',
+  })
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
+  @ApiPropertyOptional({
+    description: 'Whether MFA is enabled for this user',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  mfaEnabled?: boolean;
 }

@@ -45,6 +45,9 @@ export class DeliveryService {
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.status !== undefined) updateData.status = dto.status;
     if (dto.priority !== undefined) updateData.priority = dto.priority;
+    if (dto.category !== undefined) updateData.category = dto.category;
+    if (dto.quarter !== undefined) updateData.quarter = dto.quarter;
+    if (dto.is_public !== undefined) updateData.is_public = dto.is_public;
     if (dto.assignee_id !== undefined) updateData.assignee_id = dto.assignee_id;
     if (dto.due_date !== undefined) updateData.due_date = dto.due_date ? new Date(dto.due_date) : null;
 

@@ -173,6 +173,38 @@ export class AiExtendedController {
     return this.aiExtendedService.getProjectHealth(id);
   }
 
+  @Get('projects/:id/clusters')
+  @ApiOperation({ summary: 'Get semantic ticket clusters within a project' })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200 })
+  getProjectClusters(@Param('id') id: string) {
+    return this.aiExtendedService.getProjectClusters(id);
+  }
+
+  @Get('projects/:id/scope-drift')
+  @ApiOperation({ summary: 'Get tickets flagged as outside project scope' })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200 })
+  getProjectScopeDrift(@Param('id') id: string) {
+    return this.aiExtendedService.getProjectScopeDrift(id);
+  }
+
+  @Get('projects/:id/churn-risk')
+  @ApiOperation({ summary: 'Get churn risk score for a project/client relationship' })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200 })
+  getProjectChurnRisk(@Param('id') id: string) {
+    return this.aiExtendedService.getProjectChurnRisk(id);
+  }
+
+  @Get('projects/:id/next-action')
+  @ApiOperation({ summary: 'Get recommended next action for a project' })
+  @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200 })
+  getProjectNextAction(@Param('id') id: string) {
+    return this.aiExtendedService.getProjectNextAction(id);
+  }
+
   @Get('projects/:id/status-report')
   @ApiOperation({ summary: 'Get AI-generated weekly status report for a project' })
   @ApiParam({ name: 'id' })

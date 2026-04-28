@@ -28,7 +28,7 @@ const USER_SELECT = {
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  private formatUser(user: any) {
+  private buildUserShape(user: any, assignedTickets?: number) {
     const displayName =
       [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email;
 
@@ -38,22 +38,57 @@ export class UsersService {
       overrides.map((o: any) => ({ permission: o.permission, type: o.type })),
     );
 
+    const prefs: any = user.preferences ?? {};
+
+    const wl = user.workloads?.[0];
+    const liveTickets = assignedTickets ?? wl?.active_tickets ?? 0;
+    const maxCapacity = wl?.max_capacity ?? 20;
+    const workload = wl
+      ? {
+          assignedTickets: liveTickets,
+          maxCapacity,
+          availabilityStatus: (wl.availability ?? 'AVAILABLE').toUpperCase(),
+          utilizationPct: Math.round((liveTickets / maxCapacity) * 100 * 100) / 100,
+        }
+      : undefined;
+
+    const PROF_TO_LEVEL: Record<number, string> = { 1: 'BEGINNER', 2: 'BEGINNER', 3: 'INTERMEDIATE', 4: 'INTERMEDIATE', 5: 'EXPERT' };
+    const skills = (user.user_skills ?? []).map((us: any) => ({
+      skillId: us.skill_id,
+      skill: us.skill
+        ? { id: us.skill.id, name: us.skill.name, category: us.skill.category, description: us.skill.description ?? undefined }
+        : undefined,
+      level: PROF_TO_LEVEL[us.proficiency] ?? 'BEGINNER',
+    }));
+
     return {
       id: user.id,
       email: user.email,
-      displayName: displayName,
-      first_name: user.first_name,
-      last_name: user.last_name,
+      displayName,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      avatarUrl: user.avatar_url,
       role: user.role,
-      avatar_url: user.avatar_url,
-      is_active: user.is_active ?? true,
-      tenant_id: user.tenant_id,
+      isActive: prefs.isActive ?? true,
+      organizationId: user.tenant_id,
       permissions,
-      permission_overrides: overrides,
-      last_login_at: user.last_active_at,
+      permissionOverrides: overrides,
+      lastLoginAt: user.last_active_at,
       created_at: user.created_at,
       updated_at: user.updated_at,
+      internalSubRole: prefs.internalSubRole ?? undefined,
+      department: prefs.department ?? undefined,
+      timezone: prefs.timezone ?? undefined,
+      mfaEnabled: prefs.mfaEnabled ?? false,
+      jobTitle: prefs.jobTitle ?? undefined,
+      phone: prefs.phone ?? undefined,
+      skills: skills.length ? skills : undefined,
+      workload,
     };
+  }
+
+  private formatUser(user: any) {
+    return this.buildUserShape(user);
   }
 
   async findAll(
@@ -63,7 +98,10 @@ export class UsersService {
     const page = Math.max(1, opts.page ?? 1);
     const limit = Math.min(100, opts.limit ?? 25);
     const where: any = { tenant_id: tenantId };
-    if (opts.role) where.role = opts.role;
+    if (opts.role) {
+      const roles = opts.role.split(',').map((r) => r.trim()).filter(Boolean);
+      where.role = roles.length === 1 ? roles[0] : { in: roles };
+    }
     if (opts.search) {
       where.OR = [
         { email: { contains: opts.search, mode: 'insensitive' } },
@@ -78,13 +116,25 @@ export class UsersService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { created_at: 'desc' },
-        include: { permission_overrides: true },
+        include: {
+          permission_overrides: true,
+          user_skills: { include: { skill: true } },
+          workloads: true,
+        },
       }),
       this.prisma.user.count({ where }),
     ]);
 
+    const ticketCounts = await Promise.all(
+      data.map((u) =>
+        this.prisma.ticket.count({
+          where: { assignee_id: u.id, status: { notIn: ['RESOLVED', 'CLOSED'] } },
+        }),
+      ),
+    );
+
     return {
-      data: data.map(this.formatUser.bind(this)),
+      data: data.map((u, i) => this.buildUserShape(u, ticketCounts[i])),
       page,
       page_size: limit,
       total,
@@ -95,10 +145,19 @@ export class UsersService {
   async findOne(id: string, tenantId: string) {
     const user = await this.prisma.user.findFirst({
       where: { id, tenant_id: tenantId },
-      include: { permission_overrides: true },
+      include: {
+        permission_overrides: true,
+        user_skills: { include: { skill: true } },
+        workloads: true,
+      },
     });
     if (!user) throw new NotFoundException('User not found');
-    return { data: this.formatUser(user) };
+
+    const assignedTickets = await this.prisma.ticket.count({
+      where: { assignee_id: id, status: { notIn: ['RESOLVED', 'CLOSED'] } },
+    });
+
+    return { data: this.buildUserShape(user, assignedTickets) };
   }
 
   async invite(dto: {
@@ -109,7 +168,7 @@ export class UsersService {
     tenant_id: string;
   }) {
     const existing = await this.prisma.user.findFirst({
-      where: { email: dto.email },
+      where: { email: dto.email, tenant_id: dto.tenant_id },
     });
     if (existing) throw new ConflictException('EMAIL_ALREADY_EXISTS');
 
@@ -141,10 +200,29 @@ export class UsersService {
     if (dto.avatar_url !== undefined) updateData.avatar_url = dto.avatar_url;
     if (dto.role !== undefined) updateData.role = dto.role;
 
+    // Keys may arrive snake_cased due to the global CamelToSnakeInterceptor
+    const prefKeyMap: Record<string, string> = {
+      is_active: 'isActive',
+      internal_sub_role: 'internalSubRole',
+      department: 'department',
+      timezone: 'timezone',
+      mfa_enabled: 'mfaEnabled',
+      job_title: 'jobTitle',
+      phone: 'phone',
+    };
+    const prefUpdates: Record<string, any> = {};
+    for (const [snakeKey, camelKey] of Object.entries(prefKeyMap)) {
+      if (dto[snakeKey] !== undefined) prefUpdates[camelKey] = dto[snakeKey];
+    }
+    if (Object.keys(prefUpdates).length > 0) {
+      const current = (user.preferences as Record<string, any>) ?? {};
+      updateData.preferences = { ...current, ...prefUpdates };
+    }
+
     const updated = await this.prisma.user.update({
       where: { id },
       data: updateData,
-      include: { permission_overrides: true },
+      include: { permission_overrides: true, user_skills: { include: { skill: true } }, workloads: true },
     });
 
     return { data: this.formatUser(updated) };
@@ -159,14 +237,33 @@ export class UsersService {
 
   // ── Permission Overrides ──────────────────────────────────────────────────
 
-  async getPermissions(userId: string, tenantId: string) {
-    const user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
-    if (!user) throw new NotFoundException('User not found');
-
+  private async buildPermissionsResponse(userId: string, tenantId: string, role: string) {
     const overrides = await this.prisma.permissionOverride.findMany({
       where: { user_id: userId, tenant_id: tenantId },
     });
-    return overrides;
+    const effective = getPermissionsForRole(
+      role as any,
+      overrides.map((o) => ({ permission: o.permission, type: o.type as any })),
+    );
+    return {
+      data: {
+        effective,
+        overrides: overrides.map((o) => ({
+          id: o.id,
+          permission: o.permission,
+          type: o.type,
+          grantedBy: o.granted_by,
+          reason: (o as any).reason ?? undefined,
+          created_at: o.created_at,
+        })),
+      },
+    };
+  }
+
+  async getPermissions(userId: string, tenantId: string) {
+    const user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+    if (!user) throw new NotFoundException('User not found');
+    return this.buildPermissionsResponse(userId, tenantId, user.role);
   }
 
   async upsertPermission(
@@ -183,7 +280,7 @@ export class UsersService {
       where: { user_id: userId, tenant_id: tenantId, permission: dto.permission },
     });
 
-    const data = {
+    const overrideData = {
       user_id: userId,
       tenant_id: tenantId,
       permission: dto.permission,
@@ -192,9 +289,12 @@ export class UsersService {
     };
 
     if (existing) {
-      return this.prisma.permissionOverride.update({ where: { id: existing.id }, data });
+      await this.prisma.permissionOverride.update({ where: { id: existing.id }, data: overrideData });
+    } else {
+      await this.prisma.permissionOverride.create({ data: overrideData });
     }
-    return this.prisma.permissionOverride.create({ data });
+
+    return this.buildPermissionsResponse(userId, tenantId, user.role);
   }
 
   // ── Workload ─────────────────────────────────────────────────────────────
@@ -232,11 +332,14 @@ export class UsersService {
   async updateWorkload(
     userId: string,
     tenantId: string,
-    dto: { max_capacity?: number; availability_status?: string },
+    dto: { max_capacity?: number; maxCapacity?: number; availability_status?: string; availabilityStatus?: string },
     actorId: string,
     actorRole: string,
   ) {
-    if (dto.max_capacity !== undefined && actorId !== userId && !['ADMIN', 'LEAD'].includes(actorRole)) {
+    const maxCapacity = dto.max_capacity ?? dto.maxCapacity;
+    const availabilityStatus = dto.availability_status ?? dto.availabilityStatus;
+
+    if (maxCapacity !== undefined && actorId !== userId && !['ADMIN', 'LEAD'].includes(actorRole)) {
       throw new ForbiddenException('Only ADMIN/LEAD can update max_capacity');
     }
 
@@ -249,8 +352,8 @@ export class UsersService {
 
     let workload = await this.prisma.workload.findFirst({ where: { user_id: userId } });
     const updateData: any = {};
-    if (dto.max_capacity !== undefined) updateData.max_capacity = dto.max_capacity;
-    if (dto.availability_status !== undefined) updateData.availability = dto.availability_status;
+    if (maxCapacity !== undefined) updateData.max_capacity = maxCapacity;
+    if (availabilityStatus !== undefined) updateData.availability = availabilityStatus;
 
     if (workload) {
       workload = await this.prisma.workload.update({ where: { id: workload.id }, data: updateData });
@@ -287,13 +390,13 @@ export class UsersService {
 
     return {
       data: {
-        total_agents: agents.length,
-        available_agents: statusCounts.AVAILABLE,
-        busy_agents: statusCounts.BUSY,
-        away_agents: statusCounts.AWAY,
-        offline_agents: statusCounts.OFFLINE + statusCounts.DO_NOT_DISTURB,
-        avg_utilization: agents.length ? Math.round((totalUtil / agents.length) * 100) / 10000 : 0,
-        overloaded_agents: overloaded,
+        totalAgents: agents.length,
+        availableAgents: statusCounts.AVAILABLE,
+        busyAgents: statusCounts.BUSY,
+        awayAgents: statusCounts.AWAY,
+        offlineAgents: statusCounts.OFFLINE + statusCounts.DO_NOT_DISTURB,
+        avgUtilization: agents.length ? Math.round((totalUtil / agents.length) * 100) / 100 : 0,
+        overloadedAgents: overloaded,
       },
     };
   }

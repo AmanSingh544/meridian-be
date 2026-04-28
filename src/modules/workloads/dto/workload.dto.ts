@@ -7,10 +7,10 @@ export class UpdateWorkloadDto {
   @IsInt()
   max_capacity?: number;
 
-  @ApiPropertyOptional({ example: 'busy' })
+  @ApiPropertyOptional({ example: 'BUSY', description: 'availability_status sent by frontend, interceptor converts availabilityStatus → availability_status' })
   @IsOptional()
   @IsString()
-  availability?: string;
+  availability_status?: string;
 }
 
 export class WorkloadResponseDto {

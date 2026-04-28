@@ -74,8 +74,12 @@ export class SkillsService {
       data: userSkills.map((us) => ({
         id: us.id,
         skill_id: us.skill_id,
-        name: us.skill.name,
-        category: us.skill.category,
+        skill: {
+          id: us.skill.id,
+          name: us.skill.name,
+          category: us.skill.category,
+          description: us.skill.description ?? undefined,
+        },
         proficiency: us.proficiency,
         level: PROFICIENCY_TO_LEVEL[us.proficiency] ?? 'BEGINNER',
         created_at: us.created_at,

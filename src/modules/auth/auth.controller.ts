@@ -8,6 +8,7 @@ import {
   UnauthorizedException,
   Res,
   Req,
+  HttpCode,
 } from '@nestjs/common';
 import { Response } from 'express';
 import {
@@ -23,6 +24,7 @@ import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator';
 import { ConfigService } from '@nestjs/config';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import {
   LoginResponseDto,
   RefreshResponseDto,
@@ -146,6 +148,20 @@ export class AuthController {
     res.clearCookie('access_token', { httpOnly: true, path: '/' });
     res.clearCookie('refresh_token', { httpOnly: true, path: '/' });
     return { message: 'Logged out successfully' };
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiCookieAuth('access_token')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Change the current user\'s password' })
+  @ApiBody({ type: ChangePasswordDto })
+  async changePassword(
+    @CurrentUser('userId') userId: string,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    await this.authService.changePassword(userId, dto.current_password, dto.new_password);
+    return { message: 'Password changed successfully' };
   }
 
   @Get('session')

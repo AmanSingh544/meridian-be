@@ -50,6 +50,34 @@ export class UsersController {
     return this.usersService.getWorkloadSummary(tenantId);
   }
 
+  @Get('scoring-weights')
+  @ApiOperation({ summary: 'Get global assignment scoring weights' })
+  getScoringWeights() {
+    return { data: { id: 'global', wSkill: 0.5, wWorkload: 0.35, wAvail: 0.15 } };
+  }
+
+  @Patch('scoring-weights')
+  @ApiOperation({ summary: 'Update global assignment scoring weights' })
+  updateScoringWeights(@Body() dto: any) {
+    return { data: { id: 'global', ...dto } };
+  }
+
+  @Get('me')
+  @ApiOperation({ summary: 'Get current user\'s own profile' })
+  getMe(@CurrentUser('userId') userId: string, @CurrentUser('tenantId') tenantId: string) {
+    return this.usersService.findOne(userId, tenantId);
+  }
+
+  @Patch('me')
+  @ApiOperation({ summary: 'Update current user\'s own profile' })
+  updateMe(
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('tenantId') tenantId: string,
+    @Body() dto: any,
+  ) {
+    return this.usersService.update(userId, tenantId, dto);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a single user by ID' })
   @ApiParam({ name: 'id' })
@@ -114,23 +142,28 @@ export class UsersController {
   @Get(':id/workload')
   @ApiOperation({ summary: 'Get workload snapshot for a user' })
   @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
-  getWorkload(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
-    return this.usersService.getWorkload(id, tenantId);
+  @ApiQuery({ name: 'tenant_id', required: false })
+  getWorkload(
+    @Param('id') id: string,
+    @Query('tenant_id') tenantId: string,
+    @CurrentUser('tenantId') jwtTenantId: string,
+  ) {
+    return this.usersService.getWorkload(id, tenantId ?? jwtTenantId);
   }
 
   @Patch(':id/workload')
   @ApiOperation({ summary: 'Update max_capacity and/or availability_status' })
   @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'tenant_id', required: false })
   updateWorkload(
     @Param('id') id: string,
     @Query('tenant_id') tenantId: string,
     @Body() dto: { max_capacity?: number; availability_status?: string },
     @CurrentUser('userId') actorId: string,
     @CurrentUser('role') actorRole: string,
+    @CurrentUser('tenantId') jwtTenantId: string,
   ) {
-    return this.usersService.updateWorkload(id, tenantId, dto, actorId, actorRole);
+    return this.usersService.updateWorkload(id, tenantId ?? jwtTenantId, dto, actorId, actorRole);
   }
 
   // ── Admin password reset ─────────────────────────────────────────────────

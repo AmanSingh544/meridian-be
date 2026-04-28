@@ -23,6 +23,8 @@ export class UserPreferencesService {
         browser_push: prefs.browser_push ?? true,
         email_on_ticket_assigned: prefs.email_on_ticket_assigned ?? true,
         email_on_sla_warning: prefs.email_on_sla_warning ?? true,
+        email_on_escalation: prefs.email_on_escalation ?? true,
+        email_daily_digest: prefs.email_daily_digest ?? false,
       },
     };
   }

@@ -82,20 +82,44 @@ export class AnalyticsService {
 
     const stats = await Promise.all(
       agents.map(async (agent) => {
-        const [resolved, open] = await Promise.all([
+        const [assigned, resolved] = await Promise.all([
+          this.prisma.ticket.count({
+            where: { assignee_id: agent.id, created_at: { gte: since } },
+          }),
           this.prisma.ticket.count({
             where: { assignee_id: agent.id, status: { in: ['RESOLVED', 'CLOSED'] }, updated_at: { gte: since } },
           }),
-          this.prisma.ticket.count({
-            where: { assignee_id: agent.id, status: { notIn: ['RESOLVED', 'CLOSED'] } },
-          }),
         ]);
+
+        const avgHoursRow = await this.prisma.$queryRaw<[{ avg_hours: string | null }]>`
+          SELECT ROUND(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600)::numeric, 2) as avg_hours
+          FROM tickets
+          WHERE assignee_id = ${agent.id}::uuid
+            AND resolved_at IS NOT NULL
+            AND updated_at >= ${since}
+        `;
+
+        const [slaTotal, slaOnTime] = await Promise.all([
+          this.prisma.ticket.count({
+            where: { assignee_id: agent.id, sla_deadline_at: { not: null }, created_at: { gte: since } },
+          }),
+          this.prisma.$queryRaw<[{ count: bigint }]>`
+            SELECT COUNT(*)::bigint as count FROM tickets
+            WHERE assignee_id = ${agent.id}::uuid
+              AND sla_deadline_at IS NOT NULL
+              AND resolved_at IS NOT NULL
+              AND resolved_at <= sla_deadline_at
+              AND created_at >= ${since}
+          `.then((r) => Number(r[0]?.count ?? 0)),
+        ]);
+
         return {
-          user_id: agent.id,
-          display_name: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.email,
-          role: agent.role,
-          resolved_tickets: resolved,
-          open_tickets: open,
+          agentId: agent.id,
+          agentName: [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.email,
+          ticketsAssigned: assigned,
+          ticketsResolved: resolved,
+          avgResolutionHours: Number(avgHoursRow[0]?.avg_hours ?? 0),
+          slaCompliance: slaTotal > 0 ? slaOnTime / slaTotal : 0,
         };
       }),
     );
@@ -141,7 +165,7 @@ export class AnalyticsService {
 
   async resolutionBySeverity(tenantId: string, days = 30) {
     const since = new Date(Date.now() - days * 86_400_000);
-    const rows = await this.prisma.$queryRaw<Array<{ priority: string; avg_hours: string }>>`
+    let rows = await this.prisma.$queryRaw<Array<{ priority: string; avg_hours: string }>>`
       SELECT priority::text, ROUND(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600)::numeric, 2) as avg_hours
       FROM tickets
       WHERE tenant_id = ${tenantId}::uuid
@@ -149,6 +173,18 @@ export class AnalyticsService {
         AND created_at >= ${since}
       GROUP BY priority
     `;
-    return { data: rows.map((r) => ({ priority: r.priority, avgHours: Number(r.avg_hours) })) };
+
+    // Fall back to all-time averages when the window has no resolved tickets
+    if (!rows.length) {
+      rows = await this.prisma.$queryRaw<Array<{ priority: string; avg_hours: string }>>`
+        SELECT priority::text, ROUND(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600)::numeric, 2) as avg_hours
+        FROM tickets
+        WHERE tenant_id = ${tenantId}::uuid
+          AND resolved_at IS NOT NULL
+        GROUP BY priority
+      `;
+    }
+
+    return { data: rows.map((r) => ({ priority: r.priority, avgHours: Number(r.avg_hours ?? 0) })) };
   }
 }

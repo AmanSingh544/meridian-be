@@ -26,6 +26,8 @@ export class ProjectsService {
     ]);
     const data = raw.map((p: any) => ({
       ...p,
+      scope: p.metadata?.scope,
+      targetDate: p.metadata?.targetDate,
       milestones: p.metadata?.milestones ?? [],
       ticketCount: p.metadata?.ticketCount ?? 0,
       openTicketCount: p.metadata?.openTicketCount ?? 0,
@@ -40,6 +42,8 @@ export class ProjectsService {
     return {
       data: {
         ...project,
+        scope: (project as any).metadata?.scope,
+        targetDate: (project as any).metadata?.targetDate,
         milestones: (project as any).metadata?.milestones ?? [],
         ticketCount: (project as any).metadata?.ticketCount ?? 0,
         openTicketCount: (project as any).metadata?.openTicketCount ?? 0,
@@ -49,10 +53,15 @@ export class ProjectsService {
   }
 
   async create(tenantId: string, dto: any) {
+    const { scope, target_date, metadata, ...rest } = dto;
     const project = await this.prisma.project.create({
-      data: { ...dto, tenant_id: tenantId },
+      data: {
+        ...rest,
+        tenant_id: tenantId,
+        metadata: { ...(metadata ?? {}), ...(scope !== undefined ? { scope } : {}), ...(target_date !== undefined ? { targetDate: target_date } : {}) },
+      },
     });
-    return { data: project };
+    return { data: { ...project, scope: (project.metadata as any)?.scope, targetDate: (project.metadata as any)?.targetDate } };
   }
 
   async update(id: string, tenantId: string, dto: any) {
@@ -65,7 +74,13 @@ export class ProjectsService {
     if (dto.status !== undefined) updateData.status = dto.status;
     if (dto.client_id !== undefined) updateData.client_id = dto.client_id;
     if (dto.health_score !== undefined) updateData.health_score = dto.health_score;
-    if (dto.metadata !== undefined) updateData.metadata = dto.metadata;
+    const existingMeta = (project.metadata as any) ?? {};
+    const metaPatch: any = {};
+    if (dto.scope !== undefined) metaPatch.scope = dto.scope;
+    if (dto.target_date !== undefined) metaPatch.targetDate = dto.target_date;
+    if (dto.metadata !== undefined || Object.keys(metaPatch).length > 0) {
+      updateData.metadata = { ...existingMeta, ...(dto.metadata ?? {}), ...metaPatch };
+    }
 
     const updated = await this.prisma.project.update({ where: { id }, data: updateData });
     return { data: updated };

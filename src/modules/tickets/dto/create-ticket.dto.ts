@@ -6,6 +6,7 @@ export enum TicketPriority {
   MEDIUM = 'MEDIUM',
   HIGH = 'HIGH',
   URGENT = 'URGENT',
+  CRITICAL = 'CRITICAL',
 }
 
 export enum TicketCategory {

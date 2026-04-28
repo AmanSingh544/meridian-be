@@ -116,6 +116,9 @@ export class TicketDto {
   @ApiProperty({ example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
   tenant_id: string;
 
+  @ApiProperty({ example: 'proj_01HZX8K7YV7QNSQJQ5ZQFJ9K3M', nullable: true })
+  project_id: string | null;
+
   @ApiProperty({ example: '2026-04-12T09:00:00Z' })
   created_at: string;
 

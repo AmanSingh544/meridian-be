@@ -38,4 +38,9 @@ export class UpdateTicketDto {
   @IsOptional()
   @IsString()
   assigned_to?: string;
+
+  @ApiPropertyOptional({ description: 'Move ticket to a different project', example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380d01' })
+  @IsOptional()
+  @IsString()
+  project_id?: string;
 }

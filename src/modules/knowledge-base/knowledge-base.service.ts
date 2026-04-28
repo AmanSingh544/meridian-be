@@ -479,20 +479,21 @@ export class KnowledgeBaseService {
   }
 
   async create(tenantId: string, dto: any) {
-    const status = dto.status ?? (dto.is_published ? 'published' : 'draft');
+    const isPublished = dto.is_published ?? dto.isPublished;
+    const status = dto.status ?? (isPublished ? 'published' : 'draft');
     const slug   = toSlug(dto.title);
 
     const article = await this.prisma.kbArticle.create({
       data: {
         tenant_id:           tenantId,
-        category_id:         dto.category_id ?? null,
+        category_id:         dto.category_id ?? dto.categoryId ?? null,
         author_id:           dto.author_id   ?? null,
         title:               dto.title,
         slug,
         excerpt:             dto.excerpt ?? null,
         content:             dto.content,
         tags:                dto.tags ?? [],
-        related_article_ids: dto.related_article_ids ?? [],
+        related_article_ids: dto.related_article_ids ?? dto.relatedArticleIds ?? [],
         status,
         published_at: status === 'published' ? new Date() : null,
         // search_vector is populated by the DB trigger on INSERT
@@ -517,12 +518,15 @@ export class KnowledgeBaseService {
     if (dto.title       !== undefined) { updateData.title = dto.title; updateData.slug = toSlug(dto.title); }
     if (dto.content     !== undefined) updateData.content     = dto.content;
     if (dto.excerpt     !== undefined) updateData.excerpt     = dto.excerpt;
-    if (dto.category_id !== undefined) updateData.category_id = dto.category_id;
+    const categoryId = dto.category_id ?? dto.categoryId;
+    if (categoryId !== undefined) updateData.category_id = categoryId;
     if (dto.author_id   !== undefined) updateData.author_id   = dto.author_id;
     if (dto.tags        !== undefined) updateData.tags        = dto.tags;
-    if (dto.related_article_ids !== undefined) updateData.related_article_ids = dto.related_article_ids;
+    const relatedIds = dto.related_article_ids ?? dto.relatedArticleIds;
+    if (relatedIds !== undefined) updateData.related_article_ids = relatedIds;
 
-    const newStatus = dto.status ?? (dto.is_published !== undefined ? (dto.is_published ? 'published' : 'draft') : undefined);
+    const isPublished = dto.is_published ?? dto.isPublished;
+    const newStatus = dto.status ?? (isPublished !== undefined ? (isPublished ? 'published' : 'draft') : undefined);
     if (newStatus !== undefined) {
       updateData.status = newStatus;
       if (newStatus === 'published' && !existing.published_at) {

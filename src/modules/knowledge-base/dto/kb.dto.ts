@@ -20,6 +20,11 @@ export class CreateKbArticleDto {
   @IsString()
   category_id?: string;
 
+  @ApiPropertyOptional({ example: 'auth-sso' })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
   @ApiPropertyOptional({ example: ['sso', 'azure-ad'], type: [String] })
   @IsOptional()
   @IsArray()
@@ -30,10 +35,32 @@ export class CreateKbArticleDto {
   @IsBoolean()
   is_published?: boolean;
 
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
+
   @ApiPropertyOptional({ example: 'published', enum: ['draft', 'published', 'archived'] })
   @IsOptional()
   @IsString()
   status?: string;
+
+  @ApiPropertyOptional({ example: [], type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  related_article_ids?: string[];
+
+  @ApiPropertyOptional({ example: [], type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  relatedArticleIds?: string[];
+
+  @ApiPropertyOptional({ example: 'how-to-configure-azure-ad-saml-sso' })
+  @IsOptional()
+  @IsString()
+  slug?: string;
 }
 
 export class UpdateKbArticleDto {
@@ -57,6 +84,11 @@ export class UpdateKbArticleDto {
   @IsString()
   category_id?: string;
 
+  @ApiPropertyOptional({ example: 'auth-sso' })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
   @ApiPropertyOptional({ example: ['sso'], type: [String] })
   @IsOptional()
   @IsArray()
@@ -67,10 +99,32 @@ export class UpdateKbArticleDto {
   @IsBoolean()
   is_published?: boolean;
 
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  isPublished?: boolean;
+
   @ApiPropertyOptional({ example: 'published', enum: ['draft', 'published', 'archived'] })
   @IsOptional()
   @IsString()
   status?: string;
+
+  @ApiPropertyOptional({ example: [], type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  related_article_ids?: string[];
+
+  @ApiPropertyOptional({ example: [], type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  relatedArticleIds?: string[];
+
+  @ApiPropertyOptional({ example: 'how-to-configure-azure-ad-saml-sso' })
+  @IsOptional()
+  @IsString()
+  slug?: string;
 }
 
 // ── Response DTOs (match KBArticle / KBCategory / KBSearchResult frontend types) ──

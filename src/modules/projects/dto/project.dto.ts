@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateProjectDto {
@@ -15,6 +15,16 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @ApiPropertyOptional({ example: 'Includes data migration, excludes branding work' })
+  @IsOptional()
+  @IsString()
+  scope?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-30' })
+  @IsOptional()
+  @IsString()
+  target_date?: string;
 
   @ApiPropertyOptional({ example: 'usr_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
   @IsOptional()
@@ -42,6 +52,16 @@ export class UpdateProjectDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @ApiPropertyOptional({ example: 'Includes data migration, excludes branding work' })
+  @IsOptional()
+  @IsString()
+  scope?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-30' })
+  @IsOptional()
+  @IsString()
+  target_date?: string;
 
   @ApiPropertyOptional({ example: {} })
   @IsOptional()
