@@ -41,15 +41,19 @@ export class AuthController {
   ) {}
 
   private getCookieOptions(maxAgeMs: number) {
-    const isProd = this.config.get('NODE_ENV') === 'production';
+    const sameSite = this.config.get<'lax' | 'strict' | 'none'>('COOKIE_SAME_SITE', 'lax');
+    // SameSite=None requires Secure=true (RFC 6265bis)
+    const secure = sameSite === 'none' ? true : this.config.get('NODE_ENV') === 'production';
+
     return {
       httpOnly: true,
-      secure: isProd,
-      sameSite: 'lax' as const,
+      secure,
+      sameSite,
       maxAge: maxAgeMs,
       path: '/',
     };
   }
+
 
   @Post('login')
   @ApiOperation({
