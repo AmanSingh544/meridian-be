@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(private prisma: PrismaService) {}
 
   async findAll(userId: string, tenantId: string, page: number, limit: number, unreadOnly?: boolean) {
@@ -70,5 +72,49 @@ export class NotificationsService {
   }) {
     const notif = await this.prisma.notification.create({ data: dto });
     return { data: notif };
+  }
+
+  /** Create an in-app notification for every ADMIN and LEAD user in the tenant. */
+  async notifyAdmins(
+    tenantId: string,
+    type: string,
+    title: string,
+    body: string,
+    data?: any,
+  ): Promise<void> {
+    const admins = await this.prisma.user.findMany({
+      where: { tenant_id: tenantId, role: { in: ['ADMIN', 'LEAD'] as any } },
+      select: { id: true },
+    });
+    await Promise.all(
+      admins.map((a) =>
+        this.create({ tenant_id: tenantId, user_id: a.id, type, title, body, data }),
+      ),
+    );
+  }
+
+  /**
+   * Post a message to a Slack channel.
+   * Requires a Slack Bot Token in the SLACK_BOT_TOKEN env var.
+   * Fire-and-forget — failures are logged but never thrown.
+   */
+  async postToSlack(channel: string, message: string): Promise<void> {
+    const token = process.env.SLACK_BOT_TOKEN;
+    if (!token) {
+      this.logger.warn('postToSlack: SLACK_BOT_TOKEN not set — skipping');
+      return;
+    }
+    try {
+      await fetch('https://slack.com/api/chat.postMessage', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ channel, text: message }),
+      });
+    } catch (err: any) {
+      this.logger.warn(`postToSlack failed: ${err?.message}`);
+    }
   }
 }

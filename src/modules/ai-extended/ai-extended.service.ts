@@ -14,13 +14,29 @@ export class AiExtendedService {
   // ── Ticket AI ─────────────────────────────────────────────────────────────
 
   async getSuggestion(ticketId: string, type: string) {
+    const suggestionId = `sugg_${ticketId}_${type}`;
+
+    // If the agent already acted on this suggestion, return early with the recorded status
+    // so the frontend shows the resolved state and hides Accept/Reject buttons.
+    const recentFeedback = await this.prisma.aiSuggestionFeedback.findFirst({
+      where: {
+        suggestion_id: suggestionId,
+        action: { in: ['accepted', 'rejected'] },
+        created_at: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+    if (recentFeedback) {
+      return { data: { id: suggestionId, type, suggestion: {}, confidence: 0, status: recentFeedback.action === 'accepted' ? 'accepted' : 'rejected' } };
+    }
+
     const ticket = await this.prisma.ticket.findUnique({
       where: { id: ticketId },
       include: { comments: { take: 5, orderBy: { created_at: 'asc' } } },
     });
 
     if (!ticket) {
-      return { data: { id: `sugg_${ticketId}_${type}`, type, suggestion: {}, confidence: 0 } };
+      return { data: { id: suggestionId, type, suggestion: {}, confidence: 0 } };
     }
 
     const content = `${ticket.title}\n${ticket.description ?? ''}`;
@@ -51,20 +67,55 @@ export class AiExtendedService {
         name: [a.first_name, a.last_name].filter(Boolean).join(' ') || a.email,
         skills: a.user_skills.map((us) => us.skill.name),
       }));
+      // Build id→name lookup so we can enrich rankings without extra DB calls
+      const agentNameMap = new Map(agentList.map((a) => [a.id, a.name]));
+
       const result = await this.aiService.suggestRoute(ticket.title, ticket.description ?? '', agentList);
-      const top = result.rankings?.[0];
-      suggestion = { agent_id: top?.agent_id ?? null, reasoning: top?.reasoning ?? '' };
+      const rankings = result.rankings ?? [];
+      const top = rankings[0];
+
+      if (top) {
+        suggestion = {
+          agentId: top.agent_id,
+          agentName: agentNameMap.get(top.agent_id) ?? top.agent_id,
+          reason: top.reasoning,
+          // Normalize LLM 0-100 integer to 0-1 float for frontend ConfidenceBar
+          confidence: Math.min(1, (top.confidence ?? 0) / 100),
+          alternativeAgents: rankings.slice(1, 3).map((r) => ({
+            agentId: r.agent_id,
+            agentName: agentNameMap.get(r.agent_id) ?? r.agent_id,
+            confidence: Math.min(1, (r.confidence ?? 0) / 100),
+          })),
+        };
+        // Envelope confidence mirrors the top suggestion's normalised value
+        confidence = suggestion.confidence;
+      }
     } else if (type === 'eta') {
       const ageHours = Math.floor((Date.now() - ticket.created_at.getTime()) / (1000 * 60 * 60));
       const commentCount = ticket.comments?.length ?? 0;
-      suggestion = await this.estimateETA(ticket, ageHours, commentCount);
+
+      // Fetch assignee workload so we can factor in how busy the assigned agent is
+      let assigneeWorkload: { active_tickets: number; max_capacity: number } | null = null;
+      if (ticket.assignee_id) {
+        assigneeWorkload = await this.prisma.workload.findFirst({
+          where: { user_id: ticket.assignee_id },
+          select: { active_tickets: true, max_capacity: true },
+        });
+      }
+
+      suggestion = await this.estimateETA(ticket, ageHours, commentCount, assigneeWorkload);
       confidence = suggestion.confidence;
     }
 
-    return { data: { id: `sugg_${ticketId}_${type}`, type, suggestion, confidence } };
+    return { data: { id: suggestionId, type, suggestion, confidence, status: 'pending' } };
   }
 
-  private async estimateETA(ticket: any, ageHours: number, commentCount: number) {
+  private async estimateETA(
+    ticket: any,
+    ageHours: number,
+    commentCount: number,
+    assigneeWorkload?: { active_tickets: number; max_capacity: number } | null,
+  ) {
     // Base hours by priority
     const baseHours: Record<string, number> = { URGENT: 4, HIGH: 8, MEDIUM: 24, LOW: 48 };
     const base = baseHours[(ticket.priority as string) ?? 'MEDIUM'] ?? 24;
@@ -86,6 +137,19 @@ export class AiExtendedService {
     if (ageHours > base * 2) {
       complexityMultiplier *= 1.3;
       factors.push(`Already open ${Math.round(ageHours)} hours`);
+    }
+
+    // Workload signal: busier agent → longer queue wait
+    if (assigneeWorkload) {
+      const capacity = assigneeWorkload.max_capacity > 0 ? assigneeWorkload.max_capacity : 10;
+      const utilization = assigneeWorkload.active_tickets / capacity;
+      if (utilization > 0.8) {
+        complexityMultiplier *= 1.4;
+        factors.push(`Assigned agent at ${Math.round(utilization * 100)}% capacity`);
+      } else if (utilization > 0.5) {
+        complexityMultiplier *= 1.2;
+        factors.push(`Assigned agent at ${Math.round(utilization * 100)}% capacity`);
+      }
     }
 
     const estimatedHours = Math.round(base * complexityMultiplier);
@@ -224,11 +288,35 @@ export class AiExtendedService {
     return { data: tickets.map((t) => ({ type: 'ticket', id: t.id, title: t.title, status: t.status, priority: t.priority })) };
   }
 
-  async acceptSuggestion(id: string) {
+  async acceptSuggestion(id: string, agentId?: string) {
+    // Suggestion ids are encoded as sugg_{ticketId}_{type}
+    const parts = id.split('_');
+    const type = parts[parts.length - 1];
+    const ticketId = parts.slice(1, parts.length - 1).join('_');
+
+    await Promise.all([
+      // Persist acceptance so we have an audit trail
+      this.prisma.aiSuggestionFeedback.create({
+        data: { suggestion_id: id, ticket_id: ticketId, type, action: 'accepted', agent_id: agentId ?? null },
+      }),
+      // For routing suggestions, actually assign the ticket
+      type === 'route' && agentId && ticketId
+        ? this.prisma.ticket.update({ where: { id: ticketId }, data: { assignee_id: agentId } })
+        : Promise.resolve(),
+    ]);
+
     return { success: true };
   }
 
   async rejectSuggestion(id: string, reason?: string) {
+    const parts = id.split('_');
+    const type = parts[parts.length - 1];
+    const ticketId = parts.slice(1, parts.length - 1).join('_');
+
+    await this.prisma.aiSuggestionFeedback.create({
+      data: { suggestion_id: id, ticket_id: ticketId, type, action: 'rejected', reason: reason ?? null },
+    });
+
     return { success: true };
   }
 
@@ -1447,6 +1535,33 @@ export class AiExtendedService {
       .sort((a, b) => b.gapScore - a.gapScore);
 
     return { data: gaps };
+  }
+
+  // ── Similar Tickets ───────────────────────────────────────────────────────
+
+  async getSimilarTickets(title: string, description: string, tenantId: string) {
+    const words = `${title} ${description}`.split(/\s+/).filter((w) => w.length > 3).slice(0, 5);
+    if (!words.length) return { data: [] };
+
+    const tickets = await this.prisma.ticket.findMany({
+      where: {
+        tenant_id: tenantId,
+        status: { in: ['RESOLVED', 'CLOSED'] },
+        OR: words.map((w) => ({ title: { contains: w, mode: 'insensitive' as const } })),
+      },
+      orderBy: { updated_at: 'desc' },
+      take: 3,
+      select: { id: true, ticket_number: true, title: true, status: true, resolved_at: true },
+    });
+
+    return {
+      data: tickets.map((t) => ({
+        ticketId: t.id,
+        ticketNumber: t.ticket_number,
+        title: t.title,
+        status: t.status,
+      })),
+    };
   }
 
   async suggestSkills(userId: string) {

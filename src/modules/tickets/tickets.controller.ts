@@ -175,8 +175,9 @@ export class TicketsController {
     @Param('id') id: string,
     @Body() dto: UpdateTicketDto,
     @Query('tenant_id') tenantId: string,
+    @CurrentUser('userId') userId: string,
   ) {
-    return this.ticketsService.update(id, tenantId, dto);
+    return this.ticketsService.update(id, tenantId, dto, userId);
   }
 
   @Post(':id/transition')

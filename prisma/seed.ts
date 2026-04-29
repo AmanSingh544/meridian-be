@@ -1173,10 +1173,10 @@ async function main() {
   // 14. ESCALATIONS
   // ═══════════════════════════════════════════════════════════════════════════
   const escalationsData = [
-    { id: seededUuid('esc', 'ESC-001'), tenant_id: t('ORG-002'), ticket_id: seededUuid('ticket', 'TKT-004'), reason: 'SLA breach imminent', status: 'open', escalated_to: u('USR-002'), resolved_at: null, created_at: new Date('2026-04-17T08:30:00Z') },
+    { id: seededUuid('esc', 'ESC-001'), tenant_id: t('ORG-004'), ticket_id: seededUuid('ticket', 'TKT-004'), reason: 'SLA breach imminent', status: 'open', escalated_to: u('USR-002'), resolved_at: null, created_at: new Date('2026-04-17T08:30:00Z') },
     { id: seededUuid('esc', 'ESC-002'), tenant_id: t('ORG-001'), ticket_id: seededUuid('ticket', 'TKT-012'), reason: 'Customer impact on prod', status: 'open', escalated_to: u('USR-002'), resolved_at: null, created_at: new Date('2026-04-17T06:00:00Z') },
-    { id: seededUuid('esc', 'ESC-003'), tenant_id: t('ORG-003'), ticket_id: seededUuid('ticket', 'TKT-021'), reason: 'Data integrity risk', status: 'open', escalated_to: u('USR-003'), resolved_at: null, created_at: new Date('2026-04-17T04:05:00Z') },
-    { id: seededUuid('esc', 'ESC-004'), tenant_id: t('ORG-002'), ticket_id: seededUuid('ticket', 'TKT-025'), reason: 'Blocking client workflow', status: 'open', escalated_to: u('USR-006'), resolved_at: null, created_at: new Date('2026-04-17T02:30:00Z') },
+    { id: seededUuid('esc', 'ESC-003'), tenant_id: t('ORG-002'), ticket_id: seededUuid('ticket', 'TKT-021'), reason: 'Data integrity risk', status: 'open', escalated_to: u('USR-003'), resolved_at: null, created_at: new Date('2026-04-17T04:05:00Z') },
+    { id: seededUuid('esc', 'ESC-004'), tenant_id: t('ORG-004'), ticket_id: seededUuid('ticket', 'TKT-025'), reason: 'Blocking client workflow', status: 'open', escalated_to: u('USR-006'), resolved_at: null, created_at: new Date('2026-04-17T02:30:00Z') },
   ];
 
   for (const esc of escalationsData) {

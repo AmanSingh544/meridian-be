@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
+import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
@@ -29,6 +31,8 @@ import { SystemSettingsModule } from './modules/system-settings/system-settings.
 import { TeamModule } from './modules/team/team.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
 import { PrismaModule } from './shared/prisma/prisma.module';
+import { RedisModule } from './shared/redis/redis.module';
+import { EmailModule } from './modules/email/email.module';
 
 @Module({
   imports: [
@@ -48,6 +52,10 @@ import { PrismaModule } from './shared/prisma/prisma.module';
         limit: 500,
       },
     ]),
+    ScheduleModule.forRoot(),
+    SchedulerModule,
+    RedisModule,
+    EmailModule,
     PrismaModule,
     AuthModule,
     UsersModule,

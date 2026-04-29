@@ -9,6 +9,7 @@ import {
   ApiCookieAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
+import { CurrentUser } from '../../shared/decorators/current-user.decorator';
 import { AiExtendedService } from './ai-extended.service';
 import {
   ClassifyTextDto,
@@ -105,14 +106,30 @@ export class AiExtendedController {
     return this.aiExtendedService.semanticSearch(query, scope);
   }
 
+  // ── Similar Tickets ───────────────────────────────────────────────────────
+
+  @Get('similar-tickets')
+  @ApiOperation({ summary: 'Find similar resolved/closed tickets by keyword match' })
+  @ApiQuery({ name: 'title', example: 'Login SSO broken' })
+  @ApiQuery({ name: 'description', required: false, example: 'Users cannot sign in via SSO' })
+  @ApiResponse({ status: 200 })
+  getSimilarTickets(
+    @Query('title') title: string,
+    @Query('description') description: string = '',
+    @CurrentUser('tenantId') tenantId: string,
+  ) {
+    return this.aiExtendedService.getSimilarTickets(title, description, tenantId);
+  }
+
   // ── Suggestion accept / reject ────────────────────────────────────────────
 
   @Post('suggestions/:id/accept')
   @ApiOperation({ summary: 'Accept AI suggestion' })
   @ApiParam({ name: 'id' })
+  @ApiBody({ schema: { properties: { agentId: { type: 'string', description: 'Required for routing suggestions — assigns this agent to the ticket' } } } })
   @ApiResponse({ status: 200 })
-  acceptSuggestion(@Param('id') id: string) {
-    return this.aiExtendedService.acceptSuggestion(id);
+  acceptSuggestion(@Param('id') id: string, @Body('agentId') agentId?: string) {
+    return this.aiExtendedService.acceptSuggestion(id, agentId);
   }
 
   @Post('suggestions/:id/reject')

@@ -72,22 +72,22 @@ export class OnboardingService {
 
   // Create a project: seeds the initial tasks for the given organisation
   async createProject(dto: CreateOnboardingProjectDto) {
-    const { organizationId, goLiveDate, tasks = [] } = dto;
+    const { organization_id, go_live_date, tasks = [] } = dto;
 
     const tenant = await this.prisma.tenant.findUnique({
-      where: { id: organizationId },
+      where: { id: organization_id },
       select: { name: true },
     });
     if (!tenant) throw new NotFoundException('Organisation not found');
 
-    const defaultDueDate = goLiveDate ? new Date(goLiveDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const defaultDueDate = go_live_date ? new Date(go_live_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
     // If no tasks provided, seed a standard set
     const taskList = tasks.length > 0 ? tasks : this.defaultTasks();
 
     await this.prisma.onboardingItem.createMany({
       data: taskList.map((t) => ({
-        tenant_id: organizationId,
+        tenant_id: organization_id,
         title: t.title,
         description: t.description ?? null,
         status: 'pending',
@@ -96,10 +96,10 @@ export class OnboardingService {
     });
 
     const allItems = await this.prisma.onboardingItem.findMany({
-      where: { tenant_id: organizationId },
+      where: { tenant_id: organization_id },
       orderBy: { created_at: 'asc' },
     });
-    return { data: this.buildProject(organizationId, tenant.name, allItems, goLiveDate) };
+    return { data: this.buildProject(organization_id, tenant.name, allItems, go_live_date) };
   }
 
   // Update project-level fields: go-live date and status across all tasks
@@ -110,11 +110,11 @@ export class OnboardingService {
 
     const tenant = await this.prisma.tenant.findUnique({ where: { id }, select: { name: true } });
 
-    // Store goLiveDate on all items as metadata via due_date update on the first item
-    if (dto.goLiveDate) {
+    // Store go_live_date on all items as metadata via due_date update on the first item
+    if (dto.go_live_date) {
       await this.prisma.onboardingItem.updateMany({
         where: { tenant_id: id },
-        data: { due_date: new Date(dto.goLiveDate) },
+        data: { due_date: new Date(dto.go_live_date) },
       });
     }
 
@@ -123,7 +123,7 @@ export class OnboardingService {
       orderBy: { created_at: 'asc' },
     });
 
-    return { data: this.buildProject(id, tenant?.name ?? 'Unknown Organisation', updatedItems, dto.goLiveDate) };
+    return { data: this.buildProject(id, tenant?.name ?? 'Unknown Organisation', updatedItems, dto.go_live_date) };
   }
 
   // Delete all onboarding tasks for an organisation (removes the project)

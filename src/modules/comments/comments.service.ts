@@ -5,6 +5,31 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { eventBus } from '../../events/event-bus';
+import { TICKET_EVENTS, EventActor, TicketEventTicket } from '../../events/ticket.events';
+
+function toCommentActor(user: any): EventActor {
+  return {
+    id: user.id,
+    email: user.email,
+    first_name: user.first_name ?? '',
+    last_name: user.last_name ?? '',
+  };
+}
+
+function toCommentEventTicket(ticket: any): TicketEventTicket {
+  return {
+    id: ticket.id,
+    tenant_id: ticket.tenant_id,
+    ticket_number: ticket.ticket_number,
+    title: ticket.title,
+    status: ticket.status,
+    priority: ticket.priority,
+    category: ticket.category,
+    requester_id: ticket.requester_id ?? null,
+    assignee_id: ticket.assignee_id ?? null,
+  };
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function assertUuid(value: string, label = 'id'): void {
@@ -98,7 +123,10 @@ export class CommentsService {
 
     const ticket = await this.prisma.ticket.findFirst({
       where: { id: ticketId, tenant_id: dto.tenant_id },
-      select: { id: true },
+      include: {
+        requester: { select: { id: true, email: true, first_name: true, last_name: true } },
+        assignee:  { select: { id: true, email: true, first_name: true, last_name: true } },
+      },
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
 
@@ -136,6 +164,22 @@ export class CommentsService {
         attachments: true,
       },
     });
+
+    // ── Emit domain event ─────────────────────────────────────────────────
+    const author = comment.author ? toCommentActor(comment.author) : null;
+    if (author) {
+      eventBus.emit(TICKET_EVENTS.COMMENTED, {
+        ticket: toCommentEventTicket(ticket),
+        comment: {
+          id: comment.id,
+          body: comment.body,
+          is_internal: comment.is_internal,
+        },
+        actor: author,
+        requester: ticket.requester ? toCommentActor(ticket.requester) : null,
+        assignee:  ticket.assignee  ? toCommentActor(ticket.assignee)  : null,
+      });
+    }
 
     return { data: this.formatComment(comment) };
   }

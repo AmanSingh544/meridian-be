@@ -3,7 +3,13 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 
 const SETTINGS_DEFAULTS = {
   notifications: {
+    // per-event email toggles
+    email_on_ticket_created: true,
+    email_on_ticket_status_changed: true,
+    email_on_ticket_assigned: true,
+    email_on_comment_added: true,
     email_on_sla_breach: true,
+    // legacy / other channels
     slack_integration_enabled: false,
     slack_channel: '',
     daily_digest_enabled: false,
@@ -48,6 +54,10 @@ export class SystemSettingsService {
     return {
       data: {
         notifications: {
+          emailOnTicketCreated: merged.notifications.email_on_ticket_created,
+          emailOnTicketStatusChanged: merged.notifications.email_on_ticket_status_changed,
+          emailOnTicketAssigned: merged.notifications.email_on_ticket_assigned,
+          emailOnCommentAdded: merged.notifications.email_on_comment_added,
           emailOnSLABreach: merged.notifications.email_on_sla_breach,
           slackIntegrationEnabled: merged.notifications.slack_integration_enabled,
           slackChannel: merged.notifications.slack_channel,
@@ -116,6 +126,28 @@ export class SystemSettingsService {
     });
 
     return this.getSettings(tenantId);
+  }
+
+  async getNotificationFlags(tenantId: string): Promise<{
+    emailOnTicketCreated: boolean;
+    emailOnTicketStatusChanged: boolean;
+    emailOnTicketAssigned: boolean;
+    emailOnCommentAdded: boolean;
+    emailOnSLABreach: boolean;
+  }> {
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { settings: true },
+    });
+    const stored = (tenant?.settings as Record<string, any>) || {};
+    const merged = this.mergeWithDefaults(stored);
+    return {
+      emailOnTicketCreated:      merged.notifications.email_on_ticket_created,
+      emailOnTicketStatusChanged: merged.notifications.email_on_ticket_status_changed,
+      emailOnTicketAssigned:     merged.notifications.email_on_ticket_assigned,
+      emailOnCommentAdded:       merged.notifications.email_on_comment_added,
+      emailOnSLABreach:          merged.notifications.email_on_sla_breach,
+    };
   }
 
   private mergeWithDefaults(stored: Record<string, any>) {

@@ -5,6 +5,12 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { SlaService } from '../sla/sla.service';
+import { SystemSettingsService } from '../system-settings/system-settings.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { AiService } from '../ai/ai.service';
+import { eventBus } from '../../events/event-bus';
+import { TICKET_EVENTS, EventActor, TicketEventTicket } from '../../events/ticket.events';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function assertUuid(value: string, label = 'id'): void {
@@ -40,9 +46,48 @@ const USER_SELECT = {
   role: true,
 };
 
+function toSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .slice(0, 80)
+    + '-' + Date.now();
+}
+
+function toActor(user: any): EventActor {
+  return {
+    id: user.id,
+    email: user.email,
+    first_name: user.first_name ?? '',
+    last_name: user.last_name ?? '',
+  };
+}
+
+function toEventTicket(ticket: any): TicketEventTicket {
+  return {
+    id: ticket.id,
+    tenant_id: ticket.tenant_id,
+    ticket_number: ticket.ticket_number,
+    title: ticket.title,
+    status: ticket.status,
+    priority: ticket.priority,
+    category: ticket.category,
+    requester_id: ticket.requester_id ?? null,
+    assignee_id: ticket.assignee_id ?? null,
+  };
+}
+
 @Injectable()
 export class TicketsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private slaService: SlaService,
+    private systemSettingsService: SystemSettingsService,
+    private notificationsService: NotificationsService,
+    private aiService: AiService,
+  ) {}
 
   async findAll(
     tenantId: string,
@@ -207,6 +252,58 @@ export class TicketsService {
       });
     }
 
+    // ── Emit domain event ─────────────────────────────────────────────────
+    const actor = toActor(ticket.requester);
+    const assignee = ticket.assignee ? toActor(ticket.assignee) : null;
+    eventBus.emit(TICKET_EVENTS.CREATED, {
+      ticket: toEventTicket(ticket),
+      actor,
+      requester: actor,
+      assignee,
+    });
+    if (assignee) {
+      eventBus.emit(TICKET_EVENTS.ASSIGNED, {
+        ticket: toEventTicket(ticket),
+        actor,
+        assignee,
+        previousAssigneeId: null,
+      });
+    }
+
+    // ── Auto-apply global SLA policy ──────────────────────────────────────
+    const slaPolicy = await this.prisma.slaPolicy.findFirst({
+      where: {
+        tenant_id: dto.tenant_id,
+        name: `global_${dto.priority.toUpperCase()}`,
+        priority: dto.priority.toUpperCase() as any,
+      },
+    });
+    if (slaPolicy) {
+      const bh = (slaPolicy.business_hours as any) || {};
+      const resolutionDeadline = this.slaService.computeDeadline(
+        ticket.created_at,
+        slaPolicy.resolution_minutes,
+        bh,
+      );
+      const firstResponseDeadline = this.slaService.computeDeadline(
+        ticket.created_at,
+        slaPolicy.first_response_minutes,
+        bh,
+      );
+      await this.prisma.ticket.update({
+        where: { id: ticket.id },
+        data: {
+          sla_policy_id: slaPolicy.id,
+          sla_deadline_at: resolutionDeadline,
+          metadata: {
+            ...(ticket.metadata as any),
+            first_response_deadline: firstResponseDeadline.toISOString(),
+          },
+        },
+      });
+      ticket.sla_deadline_at = resolutionDeadline;
+    }
+
     return { data: this.formatTicket(ticket) };
   }
 
@@ -222,6 +319,7 @@ export class TicketsService {
       assignee_id?: string;
       assigned_to?: string;
     },
+    actorId?: string,
   ) {
     assertUuid(id, 'ticket id');
     const ticket = await this.prisma.ticket.findFirst({
@@ -249,6 +347,43 @@ export class TicketsService {
         _count: { select: { comments: true, attachments: true } },
       },
     });
+
+    // ── Emit domain events ────────────────────────────────────────────────
+    const previousAssigneeId = ticket.assignee_id ?? null;
+    const newAssigneeId = updated.assignee_id ?? null;
+
+    const actorUser = actorId
+      ? await this.prisma.user.findUnique({
+          where: { id: actorId },
+          select: { id: true, email: true, first_name: true, last_name: true },
+        })
+      : null;
+    const resolvedActor = actorUser
+      ? toActor(actorUser)
+      : updated.requester
+        ? toActor(updated.requester)
+        : { id: actorId ?? '', email: '', first_name: '', last_name: '' };
+
+    eventBus.emit(TICKET_EVENTS.UPDATED, {
+      ticket: toEventTicket(updated),
+      actor: resolvedActor,
+      assignee: updated.assignee ? toActor(updated.assignee) : null,
+      previousAssigneeId,
+    });
+
+    // Only fire ASSIGNED when the assignee actually changed to a new person
+    if (
+      newAssigneeId &&
+      newAssigneeId !== previousAssigneeId &&
+      updated.assignee
+    ) {
+      eventBus.emit(TICKET_EVENTS.ASSIGNED, {
+        ticket: toEventTicket(updated),
+        actor: resolvedActor,
+        assignee: toActor(updated.assignee),
+        previousAssigneeId,
+      });
+    }
 
     return { data: this.formatTicket(updated) };
   }
@@ -290,7 +425,71 @@ export class TicketsService {
       },
     });
 
+    // ── Emit domain event ─────────────────────────────────────────────────
+    const transitionActor = await this.prisma.user.findUnique({
+      where: { id: _userId },
+      select: { id: true, email: true, first_name: true, last_name: true },
+    });
+    eventBus.emit(TICKET_EVENTS.STATUS_CHANGED, {
+      ticket: toEventTicket(updated),
+      actor: transitionActor
+        ? toActor(transitionActor)
+        : { id: _userId, email: '', first_name: '', last_name: '' },
+      requester: updated.requester ? toActor(updated.requester) : null,
+      assignee: updated.assignee ? toActor(updated.assignee) : null,
+      previousStatus: ticket.status,
+    });
+
+    // ── Post-transition side-effects (fire-and-forget, never block response) ─
+    this.runPostTransitionEffects(ticket, toStatus, tenantId).catch(() => {});
+
     return { data: this.formatTicket(updated) };
+  }
+
+  private async runPostTransitionEffects(
+    ticket: any,
+    toStatus: string,
+    tenantId: string,
+  ): Promise<void> {
+    const settings = await this.systemSettingsService.getSettings(tenantId);
+
+    // ── Notify requester on status change ──────────────────────────────────
+    if (settings.data.notifications.clientStatusNotifications && ticket.requester_id) {
+      await this.notificationsService.create({
+        tenant_id: tenantId,
+        user_id: ticket.requester_id,
+        type: 'ticket_status_change',
+        title: `Ticket ${ticket.ticket_number} updated`,
+        body: `Status changed to ${toStatus}`,
+        data: { ticket_id: ticket.id, status: toStatus },
+      });
+    }
+
+    // ── Auto-generate KB draft on resolve ──────────────────────────────────
+    if (toStatus === 'RESOLVED' && settings.data.aiFeatures.autoGenerateKBArticlesEnabled) {
+      try {
+        const draft = await this.aiService.generateKbDraft(
+          ticket.title,
+          ticket.description ?? '',
+        );
+        const draftTitle = draft.title || ticket.title;
+        const draftContent = draft.content || `Auto-generated draft from ticket ${ticket.ticket_number}`;
+        await this.prisma.kbArticle.create({
+          data: {
+            tenant_id: tenantId,
+            title: draftTitle,
+            slug: toSlug(draftTitle),
+            excerpt: draftContent.split('\n').find((l: string) => l.trim()) ?? '',
+            content: draftContent,
+            tags: ticket.tags ?? [],
+            related_article_ids: [],
+            status: 'draft',
+          },
+        });
+      } catch {
+        // KB draft generation is best-effort — never fail the transition
+      }
+    }
   }
 
   async remove(id: string, tenantId: string) {

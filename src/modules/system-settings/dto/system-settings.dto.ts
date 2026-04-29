@@ -3,6 +3,10 @@ import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateNotificationSettingsDto {
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() email_on_ticket_created?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() email_on_ticket_status_changed?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() email_on_ticket_assigned?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() email_on_comment_added?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() email_on_sla_breach?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() slack_integration_enabled?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() slack_channel?: string;

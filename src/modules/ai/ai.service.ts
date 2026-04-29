@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { SystemSettingsService } from '../system-settings/system-settings.service';
 
 // Models — primary + fallback chain (all free tier on OpenRouter)
 const MODEL_ANALYTICAL = 'nvidia/nemotron-3-super-120b-a12b:free'; // classify, summarize, route, analysis
@@ -26,7 +27,13 @@ export class AiService {
   private readonly logger = new Logger(AiService.name);
   private client: OpenAI | null = null;
 
-  constructor(private config: ConfigService) {
+  /** Cache of per-tenant OpenAI clients keyed by tenantId, expires after 5 min. */
+  private readonly tenantClientCache = new Map<string, { client: OpenAI; modelName: string; expiresAt: number }>();
+
+  constructor(
+    private config: ConfigService,
+    private systemSettingsService: SystemSettingsService,
+  ) {
     const apiKey = this.config.get<string>('OPENROUTER_API_KEY');
     if (apiKey) {
       this.client = new OpenAI({
@@ -44,6 +51,63 @@ export class AiService {
 
   private get isAvailable(): boolean {
     return !!this.client;
+  }
+
+  /**
+   * Return an OpenAI client and preferred model name for the given tenant,
+   * built from the tenant's SystemSettings (aiProvider, aiModelName, aiBaseUrl).
+   * Falls back to the shared OpenRouter client when tenant config is incomplete.
+   * Results are cached for 5 minutes to avoid per-request DB reads.
+   */
+  async getClientForTenant(tenantId: string): Promise<{ client: OpenAI; modelName: string }> {
+    const cached = this.tenantClientCache.get(tenantId);
+    if (cached && cached.expiresAt > Date.now()) {
+      return { client: cached.client, modelName: cached.modelName };
+    }
+
+    try {
+      const settings = await this.systemSettingsService.getSettings(tenantId);
+      const ai = settings.data.aiFeatures;
+      const provider = ai.aiProvider ?? 'anthropic';
+      const rawModel = ai.aiModelName?.trim() ?? '';
+      const baseUrl = ai.aiBaseUrl?.trim() ?? '';
+
+      // Derive OpenRouter-compatible model slug from provider + model name
+      let modelName: string;
+      let baseURL = OPENROUTER_BASE;
+      const apiKey = this.config.get<string>('OPENROUTER_API_KEY') ?? '';
+
+      if (provider === 'anthropic' && rawModel) {
+        modelName = `anthropic/${rawModel}`;
+      } else if (provider === 'openai' && rawModel) {
+        modelName = `openai/${rawModel}`;
+      } else if (provider === 'custom' && rawModel) {
+        modelName = rawModel;
+        if (baseUrl) baseURL = baseUrl;
+      } else {
+        // No usable tenant config — fall back to global defaults
+        return { client: this.client!, modelName: MODEL_ANALYTICAL };
+      }
+
+      if (!apiKey && baseURL === OPENROUTER_BASE) {
+        return { client: this.client!, modelName };
+      }
+
+      const client = new OpenAI({
+        baseURL,
+        apiKey,
+        defaultHeaders: {
+          'HTTP-Referer': 'https://3sc-platform.railway.app',
+          'X-Title': '3SC Platform',
+        },
+      });
+
+      this.tenantClientCache.set(tenantId, { client, modelName, expiresAt: Date.now() + 5 * 60 * 1000 });
+      return { client, modelName };
+    } catch {
+      // Settings lookup failed — fall back to shared client
+      return { client: this.client!, modelName: MODEL_ANALYTICAL };
+    }
   }
 
   // ── JSON parsing helpers ──────────────────────────────────────────────────

@@ -42,12 +42,12 @@ export class CreateOnboardingTaskDto {
 export class CreateOnboardingProjectDto {
   @ApiProperty({ example: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', description: 'Tenant/Organisation ID' })
   @IsString()
-  organizationId: string;
+  organization_id: string;
 
   @ApiPropertyOptional({ example: '2026-07-01T00:00:00.000Z' })
   @IsOptional()
   @IsDateString()
-  goLiveDate?: string;
+  go_live_date?: string;
 
   @ApiPropertyOptional({ example: 'IN_PROGRESS', enum: ['IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'CANCELLED'] })
   @IsOptional()
@@ -66,7 +66,7 @@ export class UpdateOnboardingProjectDto {
   @ApiPropertyOptional({ example: '2026-07-15T00:00:00.000Z' })
   @IsOptional()
   @IsDateString()
-  goLiveDate?: string;
+  go_live_date?: string;
 
   @ApiPropertyOptional({ example: 'ON_HOLD', enum: ['IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'CANCELLED'] })
   @IsOptional()
