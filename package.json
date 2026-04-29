@@ -49,6 +49,7 @@
     "pino-pretty": "^10.3.0",
     "prisma": "^5.8.0",
     "reflect-metadata": "^0.1.13",
+    "resend": "^6.12.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^9.0.1",
