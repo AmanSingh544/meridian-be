@@ -19,6 +19,14 @@ export class UpdateOrganizationDto {
   slug?: string;
 
   @ApiPropertyOptional({
+    description: 'Custom domain',
+    example: 'acme.com',
+  })
+  @IsOptional()
+  @IsString()
+  domain?: string;
+
+  @ApiPropertyOptional({
     description: 'Subscription plan',
     example: 'premium',
   })
@@ -48,5 +56,5 @@ export class UpdateOrganizationDto {
   })
   @IsOptional()
   @IsBoolean()
-  isActive?: boolean;
+  is_active?: boolean;
 }

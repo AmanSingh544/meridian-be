@@ -13,6 +13,12 @@ export class OrganizationDto {
   @ApiProperty({ example: 'premium' })
   plan: string;
 
+  @ApiProperty({ example: 'acme.com' })
+  domain?: string;
+
+  @ApiProperty({ example: true })
+  is_active: boolean;
+
   @ApiProperty({ example: 12 })
   user_count: number;
 
@@ -21,6 +27,9 @@ export class OrganizationDto {
 
   @ApiProperty({ example: '2024-01-15T10:00:00Z' })
   created_at: string;
+
+  @ApiProperty({ example: '2024-01-15T10:00:00Z' })
+  updated_at: string;
 }
 
 export class PaginatedOrganizationResponseDto {

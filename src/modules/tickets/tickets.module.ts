@@ -10,10 +10,11 @@ import { RealtimeModule } from '../realtime/realtime.module';
 import { EmailListener } from './listeners/email.listener';
 import { NotificationListener } from './listeners/notification.listener';
 import { SocketListener } from './listeners/socket.listener';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Module({
   imports: [SlaModule, SystemSettingsModule, NotificationsModule, EscalationsModule, AiModule, RealtimeModule],
-  providers: [TicketsService, EmailListener, NotificationListener, SocketListener],
+  providers: [TicketsService, EmailListener, NotificationListener, SocketListener, WhatsAppService],
   controllers: [TicketsController],
   exports: [TicketsService],
 })

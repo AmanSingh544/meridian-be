@@ -19,10 +19,13 @@ model Tenant {
   id          String   @id @default(uuid()) @db.Uuid
   slug        String   @unique
   name        String
+  domain      String?
   settings    Json     @default("{}")
   branding    Json     @default("{}")
   plan        String   @default("free")
+  is_active   Boolean  @default(true)
   created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
   users       User[]
   tickets     Ticket[]

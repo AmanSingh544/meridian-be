@@ -11,10 +11,12 @@ export class OrganizationsService {
       slug: org.slug,
       name: org.name,
       plan: org.plan,
+      domain: org.domain,
       is_active: org.is_active,
       settings: org.settings,
       branding: org.branding,
       created_at: org.created_at,
+      updated_at: org.updated_at,
       user_count: org._count?.users ?? 0,
       ticket_count: org._count?.tickets ?? 0,
     };
@@ -65,10 +67,11 @@ export class OrganizationsService {
     const updateData: any = {};
     if (dto.name !== undefined) updateData.name = dto.name;
     if (dto.slug !== undefined) updateData.slug = dto.slug;
+    if (dto.domain !== undefined) updateData.domain = dto.domain;
     if (dto.plan !== undefined) updateData.plan = dto.plan;
     if (dto.settings !== undefined) updateData.settings = dto.settings;
     if (dto.branding !== undefined) updateData.branding = dto.branding;
-    if (dto.isActive !== undefined) updateData.is_active = dto.isActive;
+    if (dto.is_active !== undefined) updateData.is_active = dto.is_active;
 
     const updated = await this.prisma.tenant.update({
       where: { id },

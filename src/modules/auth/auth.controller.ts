@@ -54,6 +54,14 @@ export class AuthController {
     };
   }
 
+  private getTokenNames(req: any): { access: string; refresh: string } {
+    const portal = req.headers?.['x-portal-type'];
+    if (portal === 'internal') {
+      return { access: 'internal_access_token', refresh: 'internal_refresh_token' };
+    }
+    return { access: 'customer_access_token', refresh: 'customer_refresh_token' };
+  }
+
 
   @Post('login')
   @ApiOperation({
@@ -70,6 +78,7 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Body() dto: LoginDto,
+    @Req() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
     const user = await this.authService.validateUser(dto.email, dto.password);
@@ -78,13 +87,15 @@ export class AuthController {
     const accessMaxAge = 15 * 60 * 1000; // 15 minutes
     const refreshMaxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+    const names = this.getTokenNames(req);
+
     res.cookie(
-      'access_token',
+      names.access,
       result.tokens.access,
       this.getCookieOptions(accessMaxAge),
     );
     res.cookie(
-      'refresh_token',
+      names.refresh,
       result.tokens.refresh,
       this.getCookieOptions(refreshMaxAge),
     );
@@ -110,7 +121,8 @@ export class AuthController {
   })
   @ApiResponse({ status: 401, description: 'No refresh token or invalid token' })
   async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
-    const refreshToken = req.cookies?.refresh_token;
+    const names = this.getTokenNames(req);
+    const refreshToken = req.cookies?.[names.refresh] || req.cookies?.['refresh_token'];
     if (!refreshToken) {
       throw new UnauthorizedException('No refresh token');
     }
@@ -121,12 +133,12 @@ export class AuthController {
     const refreshMaxAge = 7 * 24 * 60 * 60 * 1000;
 
     res.cookie(
-      'access_token',
+      names.access,
       result.tokens.access,
       this.getCookieOptions(accessMaxAge),
     );
     res.cookie(
-      'refresh_token',
+      names.refresh,
       result.tokens.refresh,
       this.getCookieOptions(refreshMaxAge),
     );
@@ -148,7 +160,11 @@ export class AuthController {
     description: 'Logged out successfully',
     type: LogoutResponseDto,
   })
-  async logout(@Res({ passthrough: true }) res: Response) {
+  async logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    const names = this.getTokenNames(req);
+    res.clearCookie(names.access, { httpOnly: true, path: '/' });
+    res.clearCookie(names.refresh, { httpOnly: true, path: '/' });
+    // Also clear legacy cookies to ensure clean logout during migration
     res.clearCookie('access_token', { httpOnly: true, path: '/' });
     res.clearCookie('refresh_token', { httpOnly: true, path: '/' });
     return { message: 'Logged out successfully' };

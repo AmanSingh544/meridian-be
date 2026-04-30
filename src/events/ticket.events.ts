@@ -66,4 +66,6 @@ export interface TicketCommentedPayload {
   actor: EventActor;         // comment author
   requester: EventActor | null;
   assignee: EventActor | null;
+  mentions: string[];        // all mentioned user IDs (for storage / audit)
+  mentionTargets: string[];  // user IDs who should actually receive notifications
 }

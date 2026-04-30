@@ -113,7 +113,7 @@ export class CommentsService {
     const body = dto.body ?? dto.message ?? dto.content ?? '';
     const isInternal = dto.is_internal ?? dto.isInternal ?? false;
     const parentId = dto.parent_id ?? dto.parentId ?? null;
-    const mentions = dto.mentioned_user_ids ?? [];
+    let mentions = dto.mentioned_user_ids ?? [];
     const attachmentIds = dto.attachment_ids ?? [];
 
     if (!ticketId) {
@@ -129,6 +129,46 @@ export class CommentsService {
       },
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
+
+    // ── Validate mentions ────────────────────────────────────────────────
+    mentions = [...new Set(mentions)]; // deduplicate
+    let mentionTargets: string[] = [];
+    if (mentions.length > 0) {
+      const mentionedUsers = await this.prisma.user.findMany({
+        where: { id: { in: mentions }, tenant_id: dto.tenant_id },
+        select: { id: true, role: true },
+      });
+      const foundIds = new Set(mentionedUsers.map((u) => u.id));
+      const missing = mentions.filter((id) => !foundIds.has(id));
+      if (missing.length > 0) {
+        throw new BadRequestException(`Invalid mentioned users: ${missing.join(', ')}`);
+      }
+
+      // Fetch author role for permission check
+      const author = await this.prisma.user.findUnique({
+        where: { id: dto.author_id },
+        select: { role: true },
+      });
+      const authorRole = author?.role ?? '';
+      const isClient = authorRole === 'CLIENT_USER' || authorRole === 'CLIENT_ADMIN';
+
+      if (isClient) {
+        const internalRoles = new Set(['AGENT', 'LEAD', 'ADMIN']);
+        const invalidMention = mentionedUsers.find((u) => !internalRoles.has(u.role));
+        if (invalidMention) {
+          throw new ForbiddenException('You can only mention internal staff');
+        }
+      }
+
+      // Compute who should actually receive notifications
+      // - Public comments: all mentions except author
+      // - Internal comments: only internal staff mentions except author
+      const internalRoles = new Set(['AGENT', 'LEAD', 'ADMIN']);
+      mentionTargets = mentionedUsers
+        .filter((u) => u.id !== dto.author_id)
+        .filter((u) => !isInternal || internalRoles.has(u.role))
+        .map((u) => u.id);
+    }
 
     if (parentId) {
       const parent = await this.prisma.comment.findFirst({
@@ -178,6 +218,8 @@ export class CommentsService {
         actor: author,
         requester: ticket.requester ? toCommentActor(ticket.requester) : null,
         assignee:  ticket.assignee  ? toCommentActor(ticket.assignee)  : null,
+        mentions,
+        mentionTargets,
       });
     }
 

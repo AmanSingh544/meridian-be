@@ -5,7 +5,9 @@ import { ConfigService } from '@nestjs/config';
 
 const cookieExtractor = (req: any): string | null => {
   if (req && req.cookies) {
-    return req.cookies['access_token'] || null;
+    const portal = req.headers?.['x-portal-type'];
+    const primary = portal === 'internal' ? 'internal_access_token' : 'customer_access_token';
+    return req.cookies[primary] || req.cookies['access_token'] || null;
   }
   return null;
 };

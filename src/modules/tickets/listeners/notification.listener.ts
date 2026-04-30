@@ -86,27 +86,49 @@ export class NotificationListener implements OnModuleInit {
 
   private async onCommented(p: TicketCommentedPayload) {
     try {
-      if (p.comment.is_internal) return;
-
       const authorName = p.actor.first_name
         ? `${p.actor.first_name} ${p.actor.last_name}`.trim()
         : p.actor.email;
 
-      const targets = [
-        p.ticket.requester_id !== p.actor.id ? p.ticket.requester_id : null,
-        p.ticket.assignee_id && p.ticket.assignee_id !== p.actor.id ? p.ticket.assignee_id : null,
-      ].filter(Boolean) as string[];
+      // Base targets for public comments (requester + assignee)
+      const baseTargets: string[] = [];
+      if (!p.comment.is_internal) {
+        if (p.ticket.requester_id && p.ticket.requester_id !== p.actor.id) {
+          baseTargets.push(p.ticket.requester_id);
+        }
+        if (p.ticket.assignee_id && p.ticket.assignee_id !== p.actor.id) {
+          baseTargets.push(p.ticket.assignee_id);
+        }
+      }
 
-      // deduplicate in case requester === assignee
-      const uniqueTargets = [...new Set(targets)];
+      // Merge with mention targets (already filtered by the service for visibility)
+      const allTargets = [...new Set([...baseTargets, ...p.mentionTargets])];
 
       await Promise.all(
-        uniqueTargets.map((userId) =>
+        allTargets.map((userId) =>
           this.notifService.create({
             tenant_id: p.ticket.tenant_id,
             user_id: userId,
             type: 'ticket.commented',
             title: `New comment on ${p.ticket.ticket_number}`,
+            body: `${authorName}: ${p.comment.body.slice(0, 120)}`,
+            data: {
+              ticket_id: p.ticket.id,
+              ticket_number: p.ticket.ticket_number,
+              comment_id: p.comment.id,
+            },
+          }),
+        ),
+      );
+
+      // Dedicated mention notifications
+      await Promise.all(
+        p.mentionTargets.map((userId) =>
+          this.notifService.create({
+            tenant_id: p.ticket.tenant_id,
+            user_id: userId,
+            type: 'ticket.mention',
+            title: `You were mentioned in ${p.ticket.ticket_number}`,
             body: `${authorName}: ${p.comment.body.slice(0, 120)}`,
             data: {
               ticket_id: p.ticket.id,
