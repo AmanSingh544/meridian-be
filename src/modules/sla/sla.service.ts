@@ -15,6 +15,16 @@ const PRIORITY_DEFAULTS: Record<string, { responseHours: number; resolutionHours
 // DB enum uses URGENT; the frontend/API surface uses CRITICAL as an alias
 const PRIORITIES = ['URGENT', 'HIGH', 'MEDIUM', 'LOW'] as const;
 const DB_TO_API_PRIORITY: Record<string, string> = { URGENT: 'CRITICAL' };
+function apiPriorityToDb(priority: string): string {
+  const p = priority.toUpperCase();
+  return p === 'CRITICAL' ? 'URGENT' : p;
+}
+function dbPriorityToApi(priority: string): string {
+  return DB_TO_API_PRIORITY[priority] ?? priority;
+}
+function formatSlaPolicy(policy: any) {
+  return { ...policy, priority: dbPriorityToApi(policy.priority) };
+}
 
 @Injectable()
 export class SlaService {
@@ -123,7 +133,7 @@ export class SlaService {
   async findOne(id: string, tenantId: string) {
     const policy = await this.prisma.slaPolicy.findFirst({ where: { id, tenant_id: tenantId } });
     if (!policy) throw new NotFoundException('SLA policy not found');
-    return { data: policy };
+    return { data: formatSlaPolicy(policy) };
   }
 
   async create(tenantId: string, dto: {
@@ -138,14 +148,14 @@ export class SlaService {
       data: {
         tenant_id: tenantId,
         name: dto.name,
-        priority: dto.priority as any,
+        priority: apiPriorityToDb(dto.priority) as any,
         first_response_minutes: dto.first_response_minutes,
         resolution_minutes: dto.resolution_minutes,
         business_hours: dto.business_hours ?? {},
         timezone: dto.timezone ?? 'UTC',
       },
     });
-    return { data: policy };
+    return { data: formatSlaPolicy(policy) };
   }
 
   async update(id: string, tenantId: string, dto: any) {
@@ -154,14 +164,14 @@ export class SlaService {
 
     const updateData: any = {};
     if (dto.name !== undefined) updateData.name = dto.name;
-    if (dto.priority !== undefined) updateData.priority = dto.priority;
+    if (dto.priority !== undefined) updateData.priority = apiPriorityToDb(dto.priority);
     if (dto.first_response_minutes !== undefined) updateData.first_response_minutes = dto.first_response_minutes;
     if (dto.resolution_minutes !== undefined) updateData.resolution_minutes = dto.resolution_minutes;
     if (dto.business_hours !== undefined) updateData.business_hours = dto.business_hours;
     if (dto.timezone !== undefined) updateData.timezone = dto.timezone;
 
     const updated = await this.prisma.slaPolicy.update({ where: { id }, data: updateData });
-    return { data: updated };
+    return { data: formatSlaPolicy(updated) };
   }
 
   async remove(id: string, tenantId: string) {

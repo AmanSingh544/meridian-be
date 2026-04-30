@@ -46,6 +46,15 @@ const USER_SELECT = {
   role: true,
 };
 
+// DB enum uses URGENT; the frontend/API surface uses CRITICAL as an alias
+function apiPriorityToDb(priority: string): string {
+  const p = priority.toUpperCase();
+  return p === 'CRITICAL' ? 'URGENT' : p;
+}
+function dbPriorityToApi(priority: string): string {
+  return priority === 'URGENT' ? 'CRITICAL' : priority;
+}
+
 function toSlug(text: string): string {
   return text
     .toLowerCase()
@@ -132,7 +141,7 @@ export class TicketsService {
       const priorities = (Array.isArray(filters.priority)
         ? filters.priority
         : filters.priority.split(',').map((s: string) => s.trim())
-      ).map((s) => s.toUpperCase());
+      ).map((s) => apiPriorityToDb(s));
       where.priority = { in: priorities };
     }
     if (filters.category) where.category = filters.category;
@@ -229,7 +238,7 @@ export class TicketsService {
         ticket_number: ticketNumber,
         title: dto.title,
         description: dto.description,
-        priority: dto.priority as any,
+        priority: apiPriorityToDb(dto.priority) as any,
         category: dto.category as any,
         tags: dto.tags ?? [],
         requester_id: dto.requester_id,
@@ -274,8 +283,8 @@ export class TicketsService {
     const slaPolicy = await this.prisma.slaPolicy.findFirst({
       where: {
         tenant_id: dto.tenant_id,
-        name: `global_${dto.priority.toUpperCase()}`,
-        priority: dto.priority.toUpperCase() as any,
+        name: `global_${apiPriorityToDb(dto.priority)}`,
+        priority: apiPriorityToDb(dto.priority) as any,
       },
     });
     if (slaPolicy) {
@@ -332,7 +341,7 @@ export class TicketsService {
     const updateData: any = {};
     if (dto.title !== undefined) updateData.title = dto.title;
     if (dto.description !== undefined) updateData.description = dto.description;
-    if (dto.priority !== undefined) updateData.priority = dto.priority;
+    if (dto.priority !== undefined) updateData.priority = apiPriorityToDb(dto.priority);
     if (dto.category !== undefined) updateData.category = dto.category;
     if (dto.tags !== undefined) updateData.tags = dto.tags;
     if (assigneeId !== undefined) updateData.assignee_id = assigneeId;
@@ -526,7 +535,7 @@ export class TicketsService {
       title: ticket.title,
       description: ticket.description,
       status: ticket.status,
-      priority: ticket.priority,
+      priority: dbPriorityToApi(ticket.priority),
       category: ticket.category,
       tags: ticket.tags ?? [],
       requester_id: ticket.requester_id,

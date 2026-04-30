@@ -107,7 +107,7 @@ export class SchedulerService {
         const criticalBreached = await this.prisma.ticket.findMany({
           where: {
             tenant_id: t.id,
-            priority: 'CRITICAL' as any,
+            priority: 'URGENT' as any,
             status: { notIn: ['RESOLVED', 'CLOSED'] as any },
             sla_deadline_at: { lt: now },
           },

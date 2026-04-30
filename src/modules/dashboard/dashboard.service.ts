@@ -71,7 +71,7 @@ export class DashboardService {
       byStatusGroups.map((g) => [g.status, g._count.id]),
     );
     const by_priority = Object.fromEntries(
-      byPriorityGroups.map((g) => [g.priority, g._count.id]),
+      byPriorityGroups.map((g) => [g.priority === 'URGENT' ? 'CRITICAL' : g.priority, g._count.id]),
     );
 
     const slaComplianceRate = totalWithSla > 0

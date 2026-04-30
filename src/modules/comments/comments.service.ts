@@ -24,7 +24,7 @@ function toCommentEventTicket(ticket: any): TicketEventTicket {
     ticket_number: ticket.ticket_number,
     title: ticket.title,
     status: ticket.status,
-    priority: ticket.priority,
+    priority: ticket.priority === 'URGENT' ? 'CRITICAL' : ticket.priority,
     category: ticket.category,
     requester_id: ticket.requester_id ?? null,
     assignee_id: ticket.assignee_id ?? null,

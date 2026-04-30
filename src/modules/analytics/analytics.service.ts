@@ -160,7 +160,7 @@ export class AnalyticsService {
       where: { tenant_id: tenantId, created_at: { gte: since } },
       _count: { id: true },
     });
-    return { data: groups.map((g) => ({ priority: g.priority, count: g._count.id })) };
+    return { data: groups.map((g) => ({ priority: g.priority === 'URGENT' ? 'CRITICAL' : g.priority, count: g._count.id })) };
   }
 
   async resolutionBySeverity(tenantId: string, days = 30) {
@@ -185,6 +185,6 @@ export class AnalyticsService {
       `;
     }
 
-    return { data: rows.map((r) => ({ priority: r.priority, avgHours: Number(r.avg_hours ?? 0) })) };
+    return { data: rows.map((r) => ({ priority: r.priority === 'URGENT' ? 'CRITICAL' : r.priority, avgHours: Number(r.avg_hours ?? 0) })) };
   }
 }

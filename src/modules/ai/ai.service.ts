@@ -114,35 +114,91 @@ export class AiService {
 
   /** Strip markdown fences and extract the first complete JSON object/array. */
   private parseJson(raw: string): any {
-    // Remove markdown code fences
-    let clean = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+    // 1. Extract content from the first markdown code block if present
+    let clean = raw;
+    const fenceMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (fenceMatch) {
+      clean = fenceMatch[1].trim();
+    } else {
+      clean = raw.trim();
+    }
 
-    // Try direct parse first
+    // 2. Try direct parse first
     try {
       return JSON.parse(clean);
     } catch {
-      // Extract the first balanced {...} block to handle trailing text / truncation
-      const start = clean.indexOf('{');
-      if (start === -1) throw new SyntaxError('No JSON object found in response');
+      // 3. Repair common LLM JSON mistakes and try again
+      const repaired = this.repairJson(clean);
+      try {
+        return JSON.parse(repaired);
+      } catch {
+        // 4. Extract the first balanced {...} block from the repaired text
+        const start = repaired.indexOf('{');
+        if (start === -1) throw new SyntaxError('No JSON object found in response');
 
-      let depth = 0;
-      let inString = false;
-      let escape = false;
-      let end = -1;
+        let depth = 0;
+        let inString = false;
+        let escape = false;
+        let end = -1;
 
-      for (let i = start; i < clean.length; i++) {
-        const ch = clean[i];
-        if (escape) { escape = false; continue; }
-        if (ch === '\\' && inString) { escape = true; continue; }
-        if (ch === '"') { inString = !inString; continue; }
-        if (inString) continue;
-        if (ch === '{') depth++;
-        else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
+        for (let i = start; i < repaired.length; i++) {
+          const ch = repaired[i];
+          if (escape) { escape = false; continue; }
+          if (ch === '\\' && inString) { escape = true; continue; }
+          if (ch === '"') { inString = !inString; continue; }
+          if (inString) continue;
+          if (ch === '{') depth++;
+          else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
+        }
+
+        if (end !== -1) return JSON.parse(repaired.slice(start, end + 1));
+        throw new SyntaxError('Could not extract complete JSON from response');
+      }
+    }
+  }
+
+  /** Fix frequent JSON syntax errors produced by LLMs (unescaped newlines, trailing commas, etc.). */
+  private repairJson(raw: string): string {
+    let result = '';
+    let inString = false;
+    let escape = false;
+
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+
+      if (escape) {
+        result += ch;
+        escape = false;
+        continue;
       }
 
-      if (end !== -1) return JSON.parse(clean.slice(start, end + 1));
-      throw new SyntaxError('Could not extract complete JSON from response');
+      if (ch === '\\' && inString) {
+        result += ch;
+        escape = true;
+        continue;
+      }
+
+      if (ch === '"') {
+        inString = !inString;
+        result += ch;
+        continue;
+      }
+
+      if (inString) {
+        // Escape literal control characters that break JSON.parse
+        if (ch === '\n') { result += '\\n'; continue; }
+        if (ch === '\r') { result += '\\r'; continue; }
+        if (ch === '\t') { result += '\\t'; continue; }
+        result += ch;
+        continue;
+      }
+
+      result += ch;
     }
+
+    // Remove trailing commas before } or ]
+    result = result.replace(/,\s*([}\]])/g, '$1');
+    return result;
   }
 
   // ── Core chat call ────────────────────────────────────────────────────────
