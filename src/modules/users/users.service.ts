@@ -93,11 +93,14 @@ export class UsersService {
 
   async findAll(
     tenantId: string,
-    opts: { page?: number; limit?: number; search?: string; role?: string } = {},
+    opts: { page?: number; limit?: number; search?: string; role?: string; actorRole?: string } = {},
   ) {
     const page = Math.max(1, opts.page ?? 1);
     const limit = Math.min(100, opts.limit ?? 25);
-    const where: any = { tenant_id: tenantId };
+    const where: any = {};
+    if (tenantId || opts.actorRole !== 'ADMIN') {
+      where.tenant_id = tenantId;
+    }
     if (opts.role) {
       const roles = opts.role.split(',').map((r) => r.trim()).filter(Boolean);
       where.role = roles.length === 1 ? roles[0] : { in: roles };
@@ -142,8 +145,8 @@ export class UsersService {
     };
   }
 
-  async findOne(id: string, tenantId: string) {
-    const user = await this.prisma.user.findFirst({
+  async findOne(id: string, tenantId: string, actorRole?: string) {
+    let user = await this.prisma.user.findFirst({
       where: { id, tenant_id: tenantId },
       include: {
         permission_overrides: true,
@@ -151,6 +154,16 @@ export class UsersService {
         workloads: true,
       },
     });
+    if (!user && actorRole === 'ADMIN') {
+      user = await this.prisma.user.findFirst({
+        where: { id },
+        include: {
+          permission_overrides: true,
+          user_skills: { include: { skill: true } },
+          workloads: true,
+        },
+      });
+    }
     if (!user) throw new NotFoundException('User not found');
 
     const assignedTickets = await this.prisma.ticket.count({
@@ -190,8 +203,11 @@ export class UsersService {
     return { data: this.formatUser(user) };
   }
 
-  async update(id: string, tenantId: string, dto: any) {
-    const user = await this.prisma.user.findFirst({ where: { id, tenant_id: tenantId } });
+  async update(id: string, tenantId: string, dto: any, actorRole?: string) {
+    let user = await this.prisma.user.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!user && actorRole === 'ADMIN') {
+      user = await this.prisma.user.findFirst({ where: { id } });
+    }
     if (!user) throw new NotFoundException('User not found');
 
     const updateData: any = {};
@@ -228,8 +244,11 @@ export class UsersService {
     return { data: this.formatUser(updated) };
   }
 
-  async remove(id: string, tenantId: string) {
-    const user = await this.prisma.user.findFirst({ where: { id, tenant_id: tenantId } });
+  async remove(id: string, tenantId: string, actorRole?: string) {
+    let user = await this.prisma.user.findFirst({ where: { id, tenant_id: tenantId } });
+    if (!user && actorRole === 'ADMIN') {
+      user = await this.prisma.user.findFirst({ where: { id } });
+    }
     if (!user) throw new NotFoundException('User not found');
     await this.prisma.user.delete({ where: { id } });
     return { success: true, message: 'User deleted successfully' };
@@ -260,10 +279,13 @@ export class UsersService {
     };
   }
 
-  async getPermissions(userId: string, tenantId: string) {
-    const user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+  async getPermissions(userId: string, tenantId: string, actorRole?: string) {
+    let user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+    if (!user && actorRole === 'ADMIN') {
+      user = await this.prisma.user.findFirst({ where: { id: userId } });
+    }
     if (!user) throw new NotFoundException('User not found');
-    return this.buildPermissionsResponse(userId, tenantId, user.role);
+    return this.buildPermissionsResponse(userId, user.tenant_id, user.role);
   }
 
   async upsertPermission(
@@ -273,16 +295,21 @@ export class UsersService {
     actorId: string,
     actorRole: string,
   ) {
-    const user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+    let user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+    if (!user && actorRole === 'ADMIN') {
+      user = await this.prisma.user.findFirst({ where: { id: userId } });
+    }
     if (!user) throw new NotFoundException('User not found');
 
+    const actualTenantId = user.tenant_id;
+
     const existing = await this.prisma.permissionOverride.findFirst({
-      where: { user_id: userId, tenant_id: tenantId, permission: dto.permission },
+      where: { user_id: userId, tenant_id: actualTenantId, permission: dto.permission },
     });
 
     const overrideData = {
       user_id: userId,
-      tenant_id: tenantId,
+      tenant_id: actualTenantId,
       permission: dto.permission,
       type: dto.type as any,
       granted_by: actorId,
@@ -294,13 +321,16 @@ export class UsersService {
       await this.prisma.permissionOverride.create({ data: overrideData });
     }
 
-    return this.buildPermissionsResponse(userId, tenantId, user.role);
+    return this.buildPermissionsResponse(userId, actualTenantId, user.role);
   }
 
   // ── Workload ─────────────────────────────────────────────────────────────
 
-  async getWorkload(userId: string, tenantId: string) {
-    const user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+  async getWorkload(userId: string, tenantId: string, actorRole?: string) {
+    let user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+    if (!user && actorRole === 'ADMIN') {
+      user = await this.prisma.user.findFirst({ where: { id: userId } });
+    }
     if (!user) throw new NotFoundException('User not found');
 
     const assignedTickets = await this.prisma.ticket.count({
@@ -347,7 +377,10 @@ export class UsersService {
       throw new BadRequestException('READONLY_FIELD');
     }
 
-    const user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+    let user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
+    if (!user && actorRole === 'ADMIN') {
+      user = await this.prisma.user.findFirst({ where: { id: userId } });
+    }
     if (!user) throw new NotFoundException('User not found');
 
     let workload = await this.prisma.workload.findFirst({ where: { user_id: userId } });
@@ -361,7 +394,7 @@ export class UsersService {
       workload = await this.prisma.workload.create({ data: { user_id: userId, ...updateData } });
     }
 
-    return this.getWorkload(userId, tenantId);
+    return this.getWorkload(userId, tenantId, actorRole);
   }
 
   async getWorkloadSummary(tenantId: string) {
@@ -403,9 +436,12 @@ export class UsersService {
 
   // ── Admin password reset ──────────────────────────────────────────────────
 
-  async adminResetPassword(targetId: string, actorId: string, tenantId: string) {
+  async adminResetPassword(targetId: string, actorId: string, tenantId: string, actorRole?: string) {
     if (targetId === actorId) throw new ForbiddenException('CANNOT_RESET_SELF');
-    const user = await this.prisma.user.findFirst({ where: { id: targetId, tenant_id: tenantId } });
+    let user = await this.prisma.user.findFirst({ where: { id: targetId, tenant_id: tenantId } });
+    if (!user && actorRole === 'ADMIN') {
+      user = await this.prisma.user.findFirst({ where: { id: targetId } });
+    }
     if (!user) throw new NotFoundException('User not found');
 
     return {

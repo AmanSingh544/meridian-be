@@ -23,7 +23,7 @@ export class UsersController {
 
   @Get()
   @ApiOperation({ summary: 'List users in a tenant' })
-  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'tenant_id', required: false })
   @ApiQuery({ name: 'page', required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'search', required: false })
@@ -34,12 +34,14 @@ export class UsersController {
     @Query('limit') limit = '25',
     @Query('search') search?: string,
     @Query('role') role?: string,
+    @CurrentUser('role') actorRole?: string,
   ) {
     return this.usersService.findAll(tenantId, {
       page: parseInt(page, 10),
       limit: parseInt(limit, 10),
       search,
       role,
+      actorRole,
     });
   }
 
@@ -81,9 +83,13 @@ export class UsersController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a single user by ID' })
   @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
-  findOne(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
-    return this.usersService.findOne(id, tenantId);
+  @ApiQuery({ name: 'tenant_id', required: false })
+  findOne(
+    @Param('id') id: string,
+    @Query('tenant_id') tenantId: string,
+    @CurrentUser('role') actorRole?: string,
+  ) {
+    return this.usersService.findOne(id, tenantId, actorRole);
   }
 
   @Post('invite')
@@ -96,21 +102,26 @@ export class UsersController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update user profile fields' })
   @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'tenant_id', required: false })
   update(
     @Param('id') id: string,
     @Body() dto: any,
     @Query('tenant_id') tenantId: string,
+    @CurrentUser('role') actorRole?: string,
   ) {
-    return this.usersService.update(id, tenantId, dto);
+    return this.usersService.update(id, tenantId, dto, actorRole);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a user' })
   @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
-  remove(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
-    return this.usersService.remove(id, tenantId);
+  @ApiQuery({ name: 'tenant_id', required: false })
+  remove(
+    @Param('id') id: string,
+    @Query('tenant_id') tenantId: string,
+    @CurrentUser('role') actorRole?: string,
+  ) {
+    return this.usersService.remove(id, tenantId, actorRole);
   }
 
   // ── Permissions ──────────────────────────────────────────────────────────
@@ -118,15 +129,19 @@ export class UsersController {
   @Get(':id/permissions')
   @ApiOperation({ summary: 'Get all permission overrides for a user' })
   @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
-  getPermissions(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
-    return this.usersService.getPermissions(id, tenantId);
+  @ApiQuery({ name: 'tenant_id', required: false })
+  getPermissions(
+    @Param('id') id: string,
+    @Query('tenant_id') tenantId: string,
+    @CurrentUser('role') actorRole?: string,
+  ) {
+    return this.usersService.getPermissions(id, tenantId, actorRole);
   }
 
   @Patch(':id/permissions')
   @ApiOperation({ summary: 'Create or update a GRANT/REVOKE permission override' })
   @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'tenant_id', required: false })
   upsertPermission(
     @Param('id') id: string,
     @Query('tenant_id') tenantId: string,
@@ -147,8 +162,9 @@ export class UsersController {
     @Param('id') id: string,
     @Query('tenant_id') tenantId: string,
     @CurrentUser('tenantId') jwtTenantId: string,
+    @CurrentUser('role') actorRole?: string,
   ) {
-    return this.usersService.getWorkload(id, tenantId ?? jwtTenantId);
+    return this.usersService.getWorkload(id, tenantId ?? jwtTenantId, actorRole);
   }
 
   @Patch(':id/workload')
@@ -171,12 +187,13 @@ export class UsersController {
   @Post(':id/reset-password')
   @ApiOperation({ summary: 'Admin-initiated password reset for a target user' })
   @ApiParam({ name: 'id' })
-  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'tenant_id', required: false })
   adminResetPassword(
     @Param('id') id: string,
     @CurrentUser('userId') actorId: string,
     @Query('tenant_id') tenantId: string,
+    @CurrentUser('role') actorRole?: string,
   ) {
-    return this.usersService.adminResetPassword(id, actorId, tenantId);
+    return this.usersService.adminResetPassword(id, actorId, tenantId, actorRole);
   }
 }

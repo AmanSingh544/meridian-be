@@ -253,6 +253,165 @@ export class AiService {
     throw lastErr;
   }
 
+  // ── Chat with tools (function calling) ────────────────────────────────────
+
+  async chatWithTools(
+    model: string,
+    messages: OpenAI.ChatCompletionMessageParam[],
+    tools: OpenAI.ChatCompletionTool[],
+    opts: { maxTokens?: number; temperature?: number } = {},
+  ): Promise<OpenAI.ChatCompletion> {
+    if (!this.client) throw new Error('AI provider not configured');
+
+    const tryModel = async (m: string) =>
+      this.client!.chat.completions.create({
+        model: m,
+        messages,
+        tools,
+        tool_choice: 'auto',
+        temperature: opts.temperature ?? 0.3,
+        max_tokens: opts.maxTokens ?? 1024,
+      } as any);
+
+    const chain = (model === MODEL_GENERATIVE || model === MODEL_ANALYTICAL)
+      ? [model, ...GENERATIVE_FALLBACKS]
+      : [model];
+
+    let lastErr: any;
+    for (const m of chain) {
+      try {
+        const response = await tryModel(m);
+        if (!response.choices?.length) {
+          const routerErr = (response as any).error;
+          const fakeErr: any = new Error(routerErr?.message ?? 'Empty choices in response');
+          fakeErr.status = routerErr?.code ?? 503;
+          throw fakeErr;
+        }
+        if (m !== model) this.logger.warn(`chatWithTools: primary ${model} failed — used fallback ${m}`);
+        return response;
+      } catch (err: any) {
+        const status = err?.status ?? err?.response?.status;
+        const retryable = [400, 402, 404, 429, 502, 503].includes(status);
+        this.logger.warn(`chatWithTools: ${m} returned ${status ?? 'unknown'} — ${retryable ? 'trying next' : 'propagating'}`);
+        if (retryable) { lastErr = err; continue; }
+        throw err;
+      }
+    }
+    throw lastErr;
+  }
+
+  // ── Chat with tools (STREAMING) ───────────────────────────────────────────
+
+  async *chatWithToolsStream(
+    model: string,
+    messages: OpenAI.ChatCompletionMessageParam[],
+    tools: OpenAI.ChatCompletionTool[],
+    opts: { maxTokens?: number; temperature?: number } = {},
+  ): AsyncGenerator<
+    | { type: 'token'; content: string }
+    | { type: 'tool_call'; calls: OpenAI.ChatCompletionMessageToolCall[] }
+    | { type: 'finish'; reason: string },
+    void,
+    unknown
+  > {
+    if (!this.client) throw new Error('AI provider not configured');
+
+    const tryModel = async (m: string) =>
+      (this.client!.chat.completions.create({
+        model: m,
+        messages,
+        tools,
+        tool_choice: 'auto',
+        temperature: opts.temperature ?? 0.3,
+        max_tokens: opts.maxTokens ?? 1024,
+        stream: true,
+      } as any) as unknown as AsyncIterable<any>);
+
+    const chain = (model === MODEL_GENERATIVE || model === MODEL_ANALYTICAL)
+      ? [model, ...GENERATIVE_FALLBACKS]
+      : [model];
+
+    interface ToolCallAccum {
+      index: number;
+      id?: string;
+      type?: string;
+      function?: { name?: string; arguments?: string };
+    }
+
+    let lastErr: any;
+    for (const m of chain) {
+      try {
+        const stream = await tryModel(m);
+        const toolCallAccumulator: Record<number, ToolCallAccum> = {};
+        let hasYieldedToolCall = false;
+
+        for await (const chunk of stream) {
+          const choice = chunk.choices?.[0];
+          if (!choice) continue;
+
+          const delta = choice.delta;
+
+          // Accumulate partial tool calls
+          if (delta?.tool_calls && delta.tool_calls.length > 0) {
+            for (const tc of delta.tool_calls) {
+              const idx = tc.index ?? 0;
+              if (!toolCallAccumulator[idx]) {
+                toolCallAccumulator[idx] = { index: idx };
+              }
+              if (tc.id) toolCallAccumulator[idx].id = tc.id;
+              if (tc.type) toolCallAccumulator[idx].type = tc.type;
+              if (tc.function) {
+                if (!toolCallAccumulator[idx].function) {
+                  toolCallAccumulator[idx].function = { name: '', arguments: '' };
+                }
+                if (tc.function.name) {
+                  toolCallAccumulator[idx].function!.name = tc.function.name;
+                }
+                if (tc.function.arguments) {
+                  toolCallAccumulator[idx].function!.arguments = (toolCallAccumulator[idx].function!.arguments ?? '') + tc.function.arguments;
+                }
+              }
+            }
+          }
+
+          // Yield content tokens
+          if (delta?.content) {
+            yield { type: 'token', content: delta.content };
+          }
+
+          // Handle finish
+          if (choice.finish_reason) {
+            if (choice.finish_reason === 'tool_calls' && !hasYieldedToolCall) {
+              hasYieldedToolCall = true;
+              const calls = Object.values(toolCallAccumulator)
+                .sort((a, b) => a.index - b.index)
+                .map(tc => ({
+                  id: tc.id ?? '',
+                  type: tc.type ?? 'function',
+                  function: {
+                    name: tc.function?.name ?? '',
+                    arguments: tc.function?.arguments ?? '',
+                  },
+                })) as OpenAI.ChatCompletionMessageToolCall[];
+              yield { type: 'tool_call', calls };
+            }
+            yield { type: 'finish', reason: choice.finish_reason };
+          }
+        }
+
+        if (m !== model) this.logger.warn(`chatWithToolsStream: primary ${model} failed — used fallback ${m}`);
+        return;
+      } catch (err: any) {
+        const status = err?.status ?? err?.response?.status;
+        const retryable = [400, 402, 404, 429, 502, 503].includes(status);
+        this.logger.warn(`chatWithToolsStream: ${m} returned ${status ?? 'unknown'} — ${retryable ? 'trying next' : 'propagating'}`);
+        if (retryable) { lastErr = err; continue; }
+        throw err;
+      }
+    }
+    throw lastErr;
+  }
+
   // ── Classify ──────────────────────────────────────────────────────────────
 
   async classifyTicket(title: string, description: string) {
@@ -526,6 +685,27 @@ Include every agent. Sort descending by confidence.`,
     } catch (err) {
       this.logger.error(`generateEmbedding failed: ${err.message}`);
       return [];
+    }
+  }
+
+  // ── Title generation ──────────────────────────────────────────────────────
+
+  async summarizeTitle(userMessage: string, assistantResponse: string): Promise<string> {
+    if (!this.isAvailable) return 'New Conversation';
+    try {
+      const prompt = `Create a very short title (3-5 words) for this conversation. Respond with ONLY the title text, no punctuation, no quotes, no explanation.
+
+User: ${userMessage.slice(0, 200)}
+Assistant: ${assistantResponse.slice(0, 200)}`;
+      const title = await this.chat(
+        MODEL_ANALYTICAL,
+        'You are a title generator. Respond with ONLY the title, no punctuation, no quotes.',
+        prompt,
+        { maxTokens: 20 },
+      );
+      return title.trim().replace(/^["']|["']$/g, '').slice(0, 100) || 'New Conversation';
+    } catch {
+      return 'New Conversation';
     }
   }
 

@@ -19,10 +19,13 @@ import {
   ApiCookieAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
+import { PermissionGuard } from '../../shared/guards/permission.guard';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator';
+import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
 import { TicketsService } from './tickets.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
+import { BulkUpdateTicketsDto } from './dto/bulk-update-tickets.dto';
 import { TicketTransitionDto } from './dto/ticket-transition.dto';
 import {
   PaginatedTicketResponseDto,
@@ -202,6 +205,21 @@ export class TicketsController {
     @CurrentUser('userId') userId: string,
   ) {
     return this.ticketsService.transition(id, tenantId, dto.to_status, userId);
+  }
+
+  @Post('bulk-update')
+  @ApiOperation({ summary: 'Bulk update multiple tickets' })
+  @ApiBody({ type: BulkUpdateTicketsDto })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiResponse({ status: 200, type: TicketDto, isArray: true })
+  @UseGuards(PermissionGuard)
+  @RequirePermission('TICKET_ASSIGN')
+  bulkUpdate(
+    @Body() dto: BulkUpdateTicketsDto,
+    @Query('tenant_id') tenantId: string,
+    @CurrentUser('userId') userId: string,
+  ) {
+    return this.ticketsService.bulkUpdate(tenantId, dto, userId);
   }
 
   @Delete(':id')

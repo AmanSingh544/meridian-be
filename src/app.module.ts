@@ -30,6 +30,9 @@ import { UserPreferencesModule } from './modules/user-preferences/user-preferenc
 import { SystemSettingsModule } from './modules/system-settings/system-settings.module';
 import { TeamModule } from './modules/team/team.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { AiCopilotModule } from './modules/ai-copilot/ai-copilot.module';
+import { DocumentsModule } from './modules/documents/documents.module';
+import { FeedbackModule } from './modules/feedback/feedback.module';
 import { PrismaModule } from './shared/prisma/prisma.module';
 import { RedisModule } from './shared/redis/redis.module';
 import { EmailModule } from './modules/email/email.module';
@@ -84,6 +87,9 @@ import { EmailModule } from './modules/email/email.module';
     SystemSettingsModule,
     TeamModule,
     RealtimeModule,
+    AiCopilotModule,
+    DocumentsModule,
+    FeedbackModule,
   ],
 })
 export class AppModule {}

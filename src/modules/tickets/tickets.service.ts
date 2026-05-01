@@ -397,6 +397,114 @@ export class TicketsService {
     return { data: this.formatTicket(updated) };
   }
 
+  async bulkUpdate(
+    tenantId: string,
+    dto: {
+      ticket_ids: string[];
+      updates?: {
+        title?: string;
+        description?: string;
+        priority?: string;
+        category?: string;
+        tags?: string[];
+        assignee_id?: string;
+        assigned_to?: string;
+        project_id?: string;
+      };
+    },
+    actorId?: string,
+  ) {
+    if (!dto.ticket_ids?.length) {
+      throw new BadRequestException('ticket_ids must contain at least one ID');
+    }
+
+    // Validate all IDs are valid UUIDs
+    for (const id of dto.ticket_ids) {
+      assertUuid(id, 'ticket id');
+    }
+
+    // Verify all tickets exist and belong to tenant
+    const tickets = await this.prisma.ticket.findMany({
+      where: {
+        id: { in: dto.ticket_ids },
+        tenant_id: tenantId,
+      },
+      select: { id: true, assignee_id: true },
+    });
+
+    if (tickets.length !== dto.ticket_ids.length) {
+      const foundIds = new Set(tickets.map((t) => t.id));
+      const missing = dto.ticket_ids.filter((id) => !foundIds.has(id));
+      throw new NotFoundException(`Tickets not found: ${missing.join(', ')}`);
+    }
+
+    const assigneeId = dto.updates?.assignee_id ?? dto.updates?.assigned_to;
+
+    const updateData: any = {};
+    if (dto.updates?.title !== undefined) updateData.title = dto.updates.title;
+    if (dto.updates?.description !== undefined) updateData.description = dto.updates.description;
+    if (dto.updates?.priority !== undefined) updateData.priority = apiPriorityToDb(dto.updates.priority);
+    if (dto.updates?.category !== undefined) updateData.category = dto.updates.category;
+    if (dto.updates?.tags !== undefined) updateData.tags = dto.updates.tags;
+    if (assigneeId !== undefined) updateData.assignee_id = assigneeId;
+    if (dto.updates?.project_id !== undefined) updateData.project_id = dto.updates.project_id ?? null;
+
+    // If only assignee change, we can use updateMany for the DB write,
+    // then fetch and emit events individually.
+    // For simplicity and correctness with events, do individual updates in a transaction.
+    const updatedTickets = await this.prisma.$transaction(
+      dto.ticket_ids.map((id) =>
+        this.prisma.ticket.update({
+          where: { id },
+          data: updateData,
+          include: {
+            requester: { select: USER_SELECT },
+            assignee: { select: USER_SELECT },
+            _count: { select: { comments: true, attachments: true } },
+          },
+        }),
+      ),
+    );
+
+    // Emit domain events for each ticket (fire-and-forget, don't block response)
+    const actorUser = actorId
+      ? await this.prisma.user.findUnique({
+          where: { id: actorId },
+          select: { id: true, email: true, first_name: true, last_name: true },
+        })
+      : null;
+    const resolvedActor = actorUser
+      ? toActor(actorUser)
+      : { id: actorId ?? '', email: '', first_name: '', last_name: '' };
+
+    for (let i = 0; i < updatedTickets.length; i++) {
+      const updated = updatedTickets[i];
+      const previousAssigneeId = tickets[i].assignee_id ?? null;
+      const newAssigneeId = updated.assignee_id ?? null;
+
+      eventBus.emit(TICKET_EVENTS.UPDATED, {
+        ticket: toEventTicket(updated),
+        actor: resolvedActor,
+        assignee: updated.assignee ? toActor(updated.assignee) : null,
+        previousAssigneeId,
+      });
+
+      if (newAssigneeId && newAssigneeId !== previousAssigneeId && updated.assignee) {
+        eventBus.emit(TICKET_EVENTS.ASSIGNED, {
+          ticket: toEventTicket(updated),
+          actor: resolvedActor,
+          assignee: toActor(updated.assignee),
+          previousAssigneeId,
+        });
+      }
+    }
+
+    return {
+      data: updatedTickets.map((t) => this.formatTicket(t)),
+      updated: updatedTickets.length,
+    };
+  }
+
   async transition(
     id: string,
     tenantId: string,

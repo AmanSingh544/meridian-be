@@ -11,6 +11,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'KB_VIEW',
     'SLA_VIEW',
     'ROADMAP_VOTE',
+    'AI_COPILOT_CHAT',
+    'DOCUMENT_VIEW',
   ],
   [UserRole.CLIENT_ADMIN]: [
     'TICKET_CREATE',
@@ -33,6 +35,8 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'BRANDING_CONFIGURE',
     'ROADMAP_VOTE',
     'ROADMAP_REQUEST',
+    'AI_COPILOT_CHAT',
+    'DOCUMENT_VIEW',
   ],
   [UserRole.AGENT]: [
     'TICKET_VIEW_ALL',
@@ -47,6 +51,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'ESCALATION_VIEW',
     'AI_SUGGEST',
     'AI_FEEDBACK',
+    'AI_COPILOT_CHAT',
+    'AI_COPILOT_WRITE',
+    'DOCUMENT_VIEW',
+    'DOCUMENT_UPLOAD',
+    'DOCUMENT_EDIT',
+    'DOCUMENT_DELETE',
   ],
   [UserRole.LEAD]: [
     'TICKET_VIEW_ALL',
@@ -83,6 +93,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'AI_PROJECT_INSIGHTS',
     'AI_PROJECT_REPORTS',
     'AI_PROJECT_QA',
+    'AI_COPILOT_CHAT',
+    'AI_COPILOT_WRITE',
+    'DOCUMENT_VIEW',
+    'DOCUMENT_UPLOAD',
+    'DOCUMENT_EDIT',
+    'DOCUMENT_DELETE',
   ],
   [UserRole.ADMIN]: [
     'TICKET_CREATE',
@@ -134,6 +150,12 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'SCORING_CONFIGURE',
     'USER_IMPORT',
     'PASSWORD_RESET',
+    'AI_COPILOT_CHAT',
+    'AI_COPILOT_WRITE',
+    'DOCUMENT_VIEW',
+    'DOCUMENT_UPLOAD',
+    'DOCUMENT_EDIT',
+    'DOCUMENT_DELETE',
   ],
 };
 

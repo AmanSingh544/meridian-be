@@ -1248,6 +1248,8 @@ async function main() {
   const permissionOverridesData = [
     { id: seededUuid('perm', 'PO-001'), tenant_id: t('ORG-001'), user_id: u('USR-004'), permission: 'TICKET_ASSIGN', type: OverrideType.GRANT, granted_by: u('USR-001'), created_at: new Date('2026-03-15T10:00:00Z') },
     { id: seededUuid('perm', 'PO-002'), tenant_id: t('ORG-002'), user_id: u('USR-101'), permission: 'DELIVERY_VIEW', type: OverrideType.GRANT, granted_by: u('USR-001'), created_at: new Date('2026-02-20T09:00:00Z') },
+    { id: seededUuid('perm', 'PO-003'), tenant_id: t('ORG-002'), user_id: u('USR-101'), permission: 'AI_COPILOT_WRITE', type: OverrideType.GRANT, granted_by: u('USR-001'), created_at: new Date('2026-04-01T09:00:00Z') },
+    { id: seededUuid('perm', 'PO-004'), tenant_id: t('ORG-001'), user_id: u('USR-007'), permission: 'AI_COPILOT_CHAT', type: OverrideType.REVOKE, granted_by: u('USR-001'), created_at: new Date('2026-04-10T14:00:00Z') },
   ];
 
   for (const po of permissionOverridesData) {

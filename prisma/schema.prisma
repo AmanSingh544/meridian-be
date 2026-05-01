@@ -44,6 +44,9 @@ model Tenant {
   roadmap_features RoadmapFeature[]
   escalations Escalation[]
   skills      Skill[]
+  ai_conversations AiConversation[]
+  documents    Document[]
+  feedback_responses FeedbackResponse[]
 
   @@map("tenants")
 }
@@ -76,6 +79,7 @@ model User {
   user_skills   UserSkill[]
   workloads     Workload[]
   kb_articles   KbArticle[]
+  documents     Document[]
 
   @@index([tenant_id, email])
   @@index([tenant_id, role])
@@ -206,6 +210,30 @@ model Attachment {
   uploader    User?    @relation(fields: [uploaded_by], references: [id])
 
   @@map("attachments")
+}
+
+// ─────────────────────────────────────────────
+// DOCUMENTS
+// ─────────────────────────────────────────────
+model Document {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenant_id      String   @db.Uuid
+  department     String
+  filename       String
+  storage_name   String
+  mime_type      String?
+  size_bytes     Int
+  download_count Int      @default(0)
+  uploaded_by    String   @db.Uuid
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant   Tenant @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  uploader User   @relation(fields: [uploaded_by], references: [id])
+
+  @@index([tenant_id, department])
+  @@index([tenant_id, created_at])
+  @@map("documents")
 }
 
 // ─────────────────────────────────────────────
@@ -543,4 +571,63 @@ model Workload {
   user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("workloads")
+}
+
+// ─────────────────────────────────────────────
+// AI COPILOT CONVERSATIONS
+// ─────────────────────────────────────────────
+model AiConversation {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenant_id   String   @db.Uuid
+  user_id     String   @db.Uuid
+  title       String?
+  context     Json     @default("{}")
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  messages    AiMessage[]
+
+  @@index([tenant_id, user_id, updated_at])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id              String   @id @default(uuid()) @db.Uuid
+  conversation_id String   @db.Uuid
+  role            String   // user | assistant | tool | system
+  content         String
+  tool_calls      Json?
+  tool_call_id    String?
+  metadata        Json     @default("{}")
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  conversation    AiConversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id, created_at])
+  @@map("ai_messages")
+}
+
+// ─────────────────────────────────────────────
+// FEEDBACK RESPONSES (CSAT / NPS)
+// ─────────────────────────────────────────────
+model FeedbackResponse {
+  id                String   @id @default(uuid()) @db.Uuid
+  tenant_id         String   @db.Uuid
+  project_id        String?  @db.Uuid
+  csat_score        Int?     // 1–5
+  nps_score         Int?     // 0–10
+  sentiment         String   @default("neutral") // positive | neutral | negative
+  theme             String?
+  module            String?
+  customer_segment  String?
+  is_flagged        Boolean  @default(false)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant            Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id, created_at])
+  @@index([tenant_id, sentiment])
+  @@index([tenant_id, theme])
+  @@map("feedback_responses")
 }
