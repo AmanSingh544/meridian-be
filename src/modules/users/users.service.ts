@@ -185,7 +185,7 @@ export class UsersService {
     });
     if (existing) throw new ConflictException('EMAIL_ALREADY_EXISTS');
 
-    const tempPassword = crypto.randomBytes(16).toString('hex');
+    const tempPassword = 'Password123!' ; //crypto.randomBytes(16).toString('hex'); // fixed as of now
     const password_hash = await bcrypt.hash(tempPassword, 10);
 
     const user = await this.prisma.user.create({
