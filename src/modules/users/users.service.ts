@@ -6,22 +6,20 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import * as crypto from 'crypto';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { getPermissionsForRole } from '../auth/permissions';
+import { buildTenantWhere } from '../../shared/utils/tenant-scope';
 
-const USER_SELECT = {
-  id: true,
-  email: true,
-  first_name: true,
-  last_name: true,
-  role: true,
-  avatar_url: true,
-  preferences: true,
-  last_active_at: true,
-  created_at: true,
-  updated_at: true,
-  tenant_id: true,
+const CLIENT_ROLES = ['CLIENT_ADMIN', 'CLIENT_USER'];
+const INTERNAL_ROLES = ['ADMIN', 'LEAD', 'AGENT'];
+
+const USER_INCLUDE = {
+  permission_overrides: true,
+  user_skills: { include: { skill: true } },
+  workloads: true,
+  user_projects: {
+    include: { project: { select: { id: true, name: true } } },
+  },
 };
 
 @Injectable()
@@ -52,13 +50,22 @@ export class UsersService {
         }
       : undefined;
 
-    const PROF_TO_LEVEL: Record<number, string> = { 1: 'BEGINNER', 2: 'BEGINNER', 3: 'INTERMEDIATE', 4: 'INTERMEDIATE', 5: 'EXPERT' };
+    const PROF_TO_LEVEL: Record<number, string> = {
+      1: 'BEGINNER', 2: 'BEGINNER', 3: 'INTERMEDIATE', 4: 'INTERMEDIATE', 5: 'EXPERT',
+    };
     const skills = (user.user_skills ?? []).map((us: any) => ({
       skillId: us.skill_id,
       skill: us.skill
         ? { id: us.skill.id, name: us.skill.name, category: us.skill.category, description: us.skill.description ?? undefined }
         : undefined,
       level: PROF_TO_LEVEL[us.proficiency] ?? 'BEGINNER',
+    }));
+
+    // Project memberships — only expose id, name, role (never raw junction fields)
+    const projects = (user.user_projects ?? []).map((up: any) => ({
+      id: up.project?.id,
+      name: up.project?.name,
+      role: up.role,
     }));
 
     return {
@@ -76,31 +83,30 @@ export class UsersService {
       lastLoginAt: user.last_active_at,
       created_at: user.created_at,
       updated_at: user.updated_at,
-      internalSubRole: prefs.internalSubRole ?? undefined,
-      department: prefs.department ?? undefined,
-      timezone: prefs.timezone ?? undefined,
+      // Real columns (not preferences JSON)
+      internal_sub_role: user.internal_sub_role ?? undefined,
+      department: user.department ?? undefined,
+      timezone: user.timezone ?? undefined,
+      job_title: user.job_title ?? undefined,
+      phone: user.phone ?? undefined,
       mfaEnabled: prefs.mfaEnabled ?? false,
-      jobTitle: prefs.jobTitle ?? undefined,
-      phone: prefs.phone ?? undefined,
       skills: skills.length ? skills : undefined,
       workload,
+      projects: projects.length ? projects : undefined,
     };
   }
 
-  private formatUser(user: any) {
-    return this.buildUserShape(user);
-  }
-
   async findAll(
-    tenantId: string,
+    tenantId: string | undefined,
     opts: { page?: number; limit?: number; search?: string; role?: string; actorRole?: string } = {},
   ) {
     const page = Math.max(1, opts.page ?? 1);
     const limit = Math.min(100, opts.limit ?? 25);
-    const where: any = {};
-    if (tenantId || opts.actorRole !== 'ADMIN') {
-      where.tenant_id = tenantId;
-    }
+
+    const tenantWhere = buildTenantWhere({ tenantId, role: opts.actorRole ?? '' });
+
+    const where: any = { ...tenantWhere };
+
     if (opts.role) {
       const roles = opts.role.split(',').map((r) => r.trim()).filter(Boolean);
       where.role = roles.length === 1 ? roles[0] : { in: roles };
@@ -119,11 +125,7 @@ export class UsersService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { created_at: 'desc' },
-        include: {
-          permission_overrides: true,
-          user_skills: { include: { skill: true } },
-          workloads: true,
-        },
+        include: USER_INCLUDE,
       }),
       this.prisma.user.count({ where }),
     ]);
@@ -145,25 +147,14 @@ export class UsersService {
     };
   }
 
-  async findOne(id: string, tenantId: string, actorRole?: string) {
+  async findOne(id: string, tenantId: string | undefined, actorRole?: string) {
+    const tenantWhere = buildTenantWhere({ tenantId, role: actorRole ?? '' });
+
     let user = await this.prisma.user.findFirst({
-      where: { id, tenant_id: tenantId },
-      include: {
-        permission_overrides: true,
-        user_skills: { include: { skill: true } },
-        workloads: true,
-      },
+      where: { id, ...tenantWhere },
+      include: USER_INCLUDE,
     });
-    if (!user && actorRole === 'ADMIN') {
-      user = await this.prisma.user.findFirst({
-        where: { id },
-        include: {
-          permission_overrides: true,
-          user_skills: { include: { skill: true } },
-          workloads: true,
-        },
-      });
-    }
+
     if (!user) throw new NotFoundException('User not found');
 
     const assignedTickets = await this.prisma.ticket.count({
@@ -179,35 +170,87 @@ export class UsersService {
     last_name?: string;
     role: string;
     tenant_id: string;
+    internal_sub_role?: string;
+    department?: string;
+    project_ids?: string[];
+    skill_ids?: string[];
   }) {
+    // Block internal-only fields for client roles
+    if (CLIENT_ROLES.includes(dto.role)) {
+      if (dto.internal_sub_role) throw new BadRequestException('internal_sub_role is not allowed for client roles');
+      if (dto.skill_ids?.length) throw new BadRequestException('skill_ids is not allowed for client roles');
+    }
+
+    // Check per-tenant email uniqueness (schema now enforces this, but give a clear error)
     const existing = await this.prisma.user.findFirst({
       where: { email: dto.email, tenant_id: dto.tenant_id },
     });
     if (existing) throw new ConflictException('EMAIL_ALREADY_EXISTS');
 
-    const tempPassword = 'Password123!' ; //crypto.randomBytes(16).toString('hex'); // fixed as of now
+    // Validate project_ids all belong to the same tenant
+    if (dto.project_ids?.length) {
+      const projects = await this.prisma.project.findMany({
+        where: { id: { in: dto.project_ids } },
+        select: { id: true, tenant_id: true },
+      });
+      const mismatch = projects.find((p) => p.tenant_id !== dto.tenant_id);
+      if (mismatch || projects.length !== dto.project_ids.length) {
+        throw new BadRequestException('All project_ids must belong to the specified tenant');
+      }
+    }
+
+    const tempPassword = 'Password123!'; // Email will activate when domain is purchased
     const password_hash = await bcrypt.hash(tempPassword, 10);
 
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        first_name: dto.first_name,
-        last_name: dto.last_name,
-        role: dto.role as any,
-        tenant_id: dto.tenant_id,
-        password_hash,
-      },
-      include: { permission_overrides: true },
+    // Wrap all creates in a single transaction — partial failure rolls back everything
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: dto.email,
+          first_name: dto.first_name,
+          last_name: dto.last_name,
+          role: dto.role as any,
+          tenant_id: dto.tenant_id,
+          password_hash,
+          internal_sub_role: dto.internal_sub_role,
+          department: dto.department,
+        },
+        include: USER_INCLUDE,
+      });
+
+      if (dto.project_ids?.length) {
+        await (tx as any).userProject.createMany({
+          data: dto.project_ids.map((project_id) => ({
+            user_id: created.id,
+            project_id,
+            role: 'MEMBER',
+          })),
+        });
+      }
+
+      if (dto.skill_ids?.length) {
+        await tx.userSkill.createMany({
+          data: dto.skill_ids.map((skill_id) => ({
+            user_id: created.id,
+            skill_id,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      // Re-fetch to include relations created in this transaction
+      return tx.user.findFirst({
+        where: { id: created.id },
+        include: USER_INCLUDE,
+      });
     });
 
-    return { data: this.formatUser(user) };
+    return { data: this.buildUserShape(user) };
   }
 
-  async update(id: string, tenantId: string, dto: any, actorRole?: string) {
-    let user = await this.prisma.user.findFirst({ where: { id, tenant_id: tenantId } });
-    if (!user && actorRole === 'ADMIN') {
-      user = await this.prisma.user.findFirst({ where: { id } });
-    }
+  async update(id: string, tenantId: string | undefined, dto: any, actorRole?: string) {
+    const tenantWhere = buildTenantWhere({ tenantId, role: actorRole ?? '' });
+    const user = await this.prisma.user.findFirst({ where: { id, ...tenantWhere } });
     if (!user) throw new NotFoundException('User not found');
 
     const updateData: any = {};
@@ -216,15 +259,18 @@ export class UsersService {
     if (dto.avatar_url !== undefined) updateData.avatar_url = dto.avatar_url;
     if (dto.role !== undefined) updateData.role = dto.role;
 
-    // Keys may arrive snake_cased due to the global CamelToSnakeInterceptor
+    // Real columns — write directly
+    if (dto.internal_sub_role !== undefined) updateData.internal_sub_role = dto.internal_sub_role;
+    if (dto.department !== undefined) updateData.department = dto.department;
+    if (dto.job_title !== undefined) updateData.job_title = dto.job_title;
+    if (dto.phone !== undefined) updateData.phone = dto.phone;
+    if (dto.timezone !== undefined) updateData.timezone = dto.timezone;
+
+    // tenant_id is immutable — silently ignore if sent
+    // Remaining preference-only fields (mfaEnabled, isActive, theme)
     const prefKeyMap: Record<string, string> = {
       is_active: 'isActive',
-      internal_sub_role: 'internalSubRole',
-      department: 'department',
-      timezone: 'timezone',
       mfa_enabled: 'mfaEnabled',
-      job_title: 'jobTitle',
-      phone: 'phone',
     };
     const prefUpdates: Record<string, any> = {};
     for (const [snakeKey, camelKey] of Object.entries(prefKeyMap)) {
@@ -235,20 +281,44 @@ export class UsersService {
       updateData.preferences = { ...current, ...prefUpdates };
     }
 
+    // Handle project_ids update if provided
+    if (dto.project_ids !== undefined) {
+      if (dto.project_ids.length) {
+        const projects = await this.prisma.project.findMany({
+          where: { id: { in: dto.project_ids } },
+          select: { id: true, tenant_id: true },
+        });
+        const mismatch = projects.find((p) => p.tenant_id !== user.tenant_id);
+        if (mismatch || projects.length !== dto.project_ids.length) {
+          throw new BadRequestException('All project_ids must belong to the user\'s tenant');
+        }
+      }
+      // Replace project assignments
+      await (this.prisma as any).userProject.deleteMany({ where: { user_id: id } });
+      if (dto.project_ids.length) {
+        await (this.prisma as any).userProject.createMany({
+          data: dto.project_ids.map((project_id: string) => ({
+            user_id: id,
+            project_id,
+            role: 'MEMBER',
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
     const updated = await this.prisma.user.update({
       where: { id },
       data: updateData,
-      include: { permission_overrides: true, user_skills: { include: { skill: true } }, workloads: true },
+      include: USER_INCLUDE,
     });
 
-    return { data: this.formatUser(updated) };
+    return { data: this.buildUserShape(updated) };
   }
 
-  async remove(id: string, tenantId: string, actorRole?: string) {
-    let user = await this.prisma.user.findFirst({ where: { id, tenant_id: tenantId } });
-    if (!user && actorRole === 'ADMIN') {
-      user = await this.prisma.user.findFirst({ where: { id } });
-    }
+  async remove(id: string, tenantId: string | undefined, actorRole?: string) {
+    const tenantWhere = buildTenantWhere({ tenantId, role: actorRole ?? '' });
+    const user = await this.prisma.user.findFirst({ where: { id, ...tenantWhere } });
     if (!user) throw new NotFoundException('User not found');
     await this.prisma.user.delete({ where: { id } });
     return { success: true, message: 'User deleted successfully' };
@@ -279,26 +349,22 @@ export class UsersService {
     };
   }
 
-  async getPermissions(userId: string, tenantId: string, actorRole?: string) {
-    let user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
-    if (!user && actorRole === 'ADMIN') {
-      user = await this.prisma.user.findFirst({ where: { id: userId } });
-    }
+  async getPermissions(userId: string, tenantId: string | undefined, actorRole?: string) {
+    const tenantWhere = buildTenantWhere({ tenantId, role: actorRole ?? '' });
+    const user = await this.prisma.user.findFirst({ where: { id: userId, ...tenantWhere } });
     if (!user) throw new NotFoundException('User not found');
     return this.buildPermissionsResponse(userId, user.tenant_id, user.role);
   }
 
   async upsertPermission(
     userId: string,
-    tenantId: string,
+    tenantId: string | undefined,
     dto: { permission: string; type: 'GRANT' | 'REVOKE'; reason?: string },
     actorId: string,
     actorRole: string,
   ) {
-    let user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
-    if (!user && actorRole === 'ADMIN') {
-      user = await this.prisma.user.findFirst({ where: { id: userId } });
-    }
+    const tenantWhere = buildTenantWhere({ tenantId, role: actorRole });
+    const user = await this.prisma.user.findFirst({ where: { id: userId, ...tenantWhere } });
     if (!user) throw new NotFoundException('User not found');
 
     const actualTenantId = user.tenant_id;
@@ -326,18 +392,13 @@ export class UsersService {
 
   // ── Workload ─────────────────────────────────────────────────────────────
 
-  async getWorkload(userId: string, tenantId: string, actorRole?: string) {
-    let user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
-    if (!user && actorRole === 'ADMIN') {
-      user = await this.prisma.user.findFirst({ where: { id: userId } });
-    }
+  async getWorkload(userId: string, tenantId: string | undefined, actorRole?: string) {
+    const tenantWhere = buildTenantWhere({ tenantId, role: actorRole ?? '' });
+    const user = await this.prisma.user.findFirst({ where: { id: userId, ...tenantWhere } });
     if (!user) throw new NotFoundException('User not found');
 
     const assignedTickets = await this.prisma.ticket.count({
-      where: {
-        assignee_id: userId,
-        status: { notIn: ['RESOLVED', 'CLOSED'] },
-      },
+      where: { assignee_id: userId, status: { notIn: ['RESOLVED', 'CLOSED'] } },
     });
 
     let workload = await this.prisma.workload.findFirst({ where: { user_id: userId } });
@@ -361,7 +422,7 @@ export class UsersService {
 
   async updateWorkload(
     userId: string,
-    tenantId: string,
+    tenantId: string | undefined,
     dto: { max_capacity?: number; maxCapacity?: number; availability_status?: string; availabilityStatus?: string },
     actorId: string,
     actorRole: string,
@@ -377,10 +438,8 @@ export class UsersService {
       throw new BadRequestException('READONLY_FIELD');
     }
 
-    let user = await this.prisma.user.findFirst({ where: { id: userId, tenant_id: tenantId } });
-    if (!user && actorRole === 'ADMIN') {
-      user = await this.prisma.user.findFirst({ where: { id: userId } });
-    }
+    const tenantWhere = buildTenantWhere({ tenantId, role: actorRole });
+    const user = await this.prisma.user.findFirst({ where: { id: userId, ...tenantWhere } });
     if (!user) throw new NotFoundException('User not found');
 
     let workload = await this.prisma.workload.findFirst({ where: { user_id: userId } });
@@ -389,9 +448,9 @@ export class UsersService {
     if (availabilityStatus !== undefined) updateData.availability = availabilityStatus;
 
     if (workload) {
-      workload = await this.prisma.workload.update({ where: { id: workload.id }, data: updateData });
+      await this.prisma.workload.update({ where: { id: workload.id }, data: updateData });
     } else {
-      workload = await this.prisma.workload.create({ data: { user_id: userId, ...updateData } });
+      await this.prisma.workload.create({ data: { user_id: userId, ...updateData } });
     }
 
     return this.getWorkload(userId, tenantId, actorRole);
@@ -436,14 +495,13 @@ export class UsersService {
 
   // ── Admin password reset ──────────────────────────────────────────────────
 
-  async adminResetPassword(targetId: string, actorId: string, tenantId: string, actorRole?: string) {
+  async adminResetPassword(targetId: string, actorId: string, tenantId: string | undefined, actorRole?: string) {
     if (targetId === actorId) throw new ForbiddenException('CANNOT_RESET_SELF');
-    let user = await this.prisma.user.findFirst({ where: { id: targetId, tenant_id: tenantId } });
-    if (!user && actorRole === 'ADMIN') {
-      user = await this.prisma.user.findFirst({ where: { id: targetId } });
-    }
+    const tenantWhere = buildTenantWhere({ tenantId, role: actorRole ?? '' });
+    const user = await this.prisma.user.findFirst({ where: { id: targetId, ...tenantWhere } });
     if (!user) throw new NotFoundException('User not found');
 
+    // Email sending will activate when domain is purchased — code path preserved
     return {
       success: true,
       message: `Password reset email sent to ${user.email}`,

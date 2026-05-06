@@ -1,9 +1,44 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { buildTenantWhere } from '../../shared/utils/tenant-scope';
 
 @Injectable()
 export class ProjectsService {
   constructor(private prisma: PrismaService) {}
+
+  private async liveTicketCounts(projectIds: string[]): Promise<Map<string, { total: number; open: number; resolvedThisWeek: number }>> {
+    if (!projectIds.length) return new Map();
+
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    const [totals, opens, resolved] = await Promise.all([
+      this.prisma.ticket.groupBy({
+        by: ['project_id'],
+        where: { project_id: { in: projectIds } },
+        _count: { id: true },
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['project_id'],
+        where: { project_id: { in: projectIds }, status: { in: ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS'] } },
+        _count: { id: true },
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['project_id'],
+        where: { project_id: { in: projectIds }, status: { in: ['RESOLVED', 'CLOSED'] }, resolved_at: { gte: weekAgo } },
+        _count: { id: true },
+      }),
+    ]);
+
+    const map = new Map<string, { total: number; open: number; resolvedThisWeek: number }>();
+    for (const pid of projectIds) {
+      map.set(pid, { total: 0, open: 0, resolvedThisWeek: 0 });
+    }
+    for (const row of totals)   if (row.project_id) map.get(row.project_id)!.total            = row._count.id;
+    for (const row of opens)    if (row.project_id) map.get(row.project_id)!.open             = row._count.id;
+    for (const row of resolved) if (row.project_id) map.get(row.project_id)!.resolvedThisWeek = row._count.id;
+    return map;
+  }
 
   async findAll(tenantId: string, page: number, limit: number, search?: string, status?: string) {
     const where: any = { tenant_id: tenantId };
@@ -24,30 +59,40 @@ export class ProjectsService {
       }),
       this.prisma.project.count({ where }),
     ]);
-    const data = raw.map((p: any) => ({
-      ...p,
-      scope: p.metadata?.scope,
-      targetDate: p.metadata?.targetDate,
-      milestones: p.metadata?.milestones ?? [],
-      ticketCount: p.metadata?.ticketCount ?? 0,
-      openTicketCount: p.metadata?.openTicketCount ?? 0,
-      resolvedThisWeek: p.metadata?.resolvedThisWeek ?? 0,
-    }));
+
+    const counts = await this.liveTicketCounts(raw.map((p: any) => p.id));
+
+    const data = raw.map((p: any) => {
+      const c = counts.get(p.id) ?? { total: 0, open: 0, resolvedThisWeek: 0 };
+      return {
+        ...p,
+        scope: p.metadata?.scope,
+        targetDate: p.metadata?.targetDate,
+        milestones: p.metadata?.milestones ?? [],
+        ticketCount: c.total,
+        openTicketCount: c.open,
+        resolvedThisWeek: c.resolvedThisWeek,
+      };
+    });
     return { data, page, page_size: limit, total, total_pages: Math.ceil(total / limit) };
   }
 
   async findOne(id: string, tenantId: string) {
     const project = await this.prisma.project.findFirst({ where: { id, tenant_id: tenantId } });
     if (!project) throw new NotFoundException('Project not found');
+
+    const counts = await this.liveTicketCounts([id]);
+    const c = counts.get(id) ?? { total: 0, open: 0, resolvedThisWeek: 0 };
+
     return {
       data: {
         ...project,
         scope: (project as any).metadata?.scope,
         targetDate: (project as any).metadata?.targetDate,
         milestones: (project as any).metadata?.milestones ?? [],
-        ticketCount: (project as any).metadata?.ticketCount ?? 0,
-        openTicketCount: (project as any).metadata?.openTicketCount ?? 0,
-        resolvedThisWeek: (project as any).metadata?.resolvedThisWeek ?? 0,
+        ticketCount: c.total,
+        openTicketCount: c.open,
+        resolvedThisWeek: c.resolvedThisWeek,
       },
     };
   }
@@ -91,5 +136,76 @@ export class ProjectsService {
     if (!project) throw new NotFoundException('Project not found');
     await this.prisma.project.delete({ where: { id } });
     return { success: true, message: 'Project deleted' };
+  }
+
+  // ── Project Members ───────────────────────────────────────────────────────
+
+  async getMembers(projectId: string, tenantId: string) {
+    const project = await this.prisma.project.findFirst({ where: { id: projectId, tenant_id: tenantId } });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const members = await (this.prisma as any).userProject.findMany({
+      where: { project_id: projectId },
+      include: {
+        user: {
+          select: {
+            id: true, email: true, first_name: true, last_name: true,
+            avatar_url: true, role: true, tenant_id: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'asc' },
+    });
+
+    return {
+      data: members.map((m: any) => ({
+        id: m.user.id,
+        email: m.user.email,
+        displayName: [m.user.first_name, m.user.last_name].filter(Boolean).join(' ') || m.user.email,
+        firstName: m.user.first_name,
+        lastName: m.user.last_name,
+        avatarUrl: m.user.avatar_url,
+        role: m.user.role,
+        project_role: m.role,
+        joined_at: m.created_at,
+      })),
+    };
+  }
+
+  async addMember(projectId: string, tenantId: string, dto: { user_id: string; role?: string }) {
+    const project = await this.prisma.project.findFirst({ where: { id: projectId, tenant_id: tenantId } });
+    if (!project) throw new NotFoundException('Project not found');
+
+    // Validate the user belongs to the same tenant
+    const user = await this.prisma.user.findFirst({ where: { id: dto.user_id, tenant_id: tenantId } });
+    if (!user) throw new BadRequestException('User does not belong to this tenant');
+
+    const existing = await (this.prisma as any).userProject.findFirst({
+      where: { user_id: dto.user_id, project_id: projectId },
+    });
+    if (existing) throw new BadRequestException('User is already a member of this project');
+
+    await (this.prisma as any).userProject.create({
+      data: {
+        user_id: dto.user_id,
+        project_id: projectId,
+        role: dto.role ?? 'MEMBER',
+      },
+    });
+
+    return this.getMembers(projectId, tenantId);
+  }
+
+  async removeMember(projectId: string, userId: string, tenantId: string) {
+    const project = await this.prisma.project.findFirst({ where: { id: projectId, tenant_id: tenantId } });
+    if (!project) throw new NotFoundException('Project not found');
+
+    const membership = await (this.prisma as any).userProject.findFirst({
+      where: { user_id: userId, project_id: projectId },
+    });
+    if (!membership) throw new NotFoundException('User is not a member of this project');
+
+    await (this.prisma as any).userProject.delete({ where: { id: membership.id } });
+    return this.getMembers(projectId, tenantId);
   }
 }

@@ -77,4 +77,39 @@ export class ProjectsController {
   remove(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
     return this.projectsService.remove(id, tenantId);
   }
+
+  // ── Project Members ───────────────────────────────────────────────────────
+
+  @Get(':id/members')
+  @ApiOperation({ summary: 'List all users assigned to a project' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  getMembers(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
+    return this.projectsService.getMembers(id, tenantId);
+  }
+
+  @Post(':id/members')
+  @ApiOperation({ summary: 'Assign a user to a project' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  addMember(
+    @Param('id') id: string,
+    @Query('tenant_id') tenantId: string,
+    @Body() dto: { user_id: string; role?: string },
+  ) {
+    return this.projectsService.addMember(id, tenantId, dto);
+  }
+
+  @Delete(':id/members/:userId')
+  @ApiOperation({ summary: 'Remove a user from a project' })
+  @ApiParam({ name: 'id' })
+  @ApiParam({ name: 'userId' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  removeMember(
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Query('tenant_id') tenantId: string,
+  ) {
+    return this.projectsService.removeMember(id, userId, tenantId);
+  }
 }

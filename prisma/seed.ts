@@ -1,4 +1,4 @@
-import { PrismaClient, TicketStatus, TicketPriority, TicketCategory, UserRole, OverrideType } from '@prisma/client';
+import { PrismaClient, TicketStatus, TicketPriority, TicketCategory, UserRole, OverrideType, ProjectRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -115,6 +115,7 @@ async function main() {
   await prisma.roadmapFeature.deleteMany();
   await prisma.onboardingItem.deleteMany();
   await prisma.deliveryItem.deleteMany();
+  await (prisma as any).userProject.deleteMany();
   await prisma.project.deleteMany();
   await prisma.kbArticle.deleteMany();
   await prisma.kbCategory.deleteMany();
@@ -158,14 +159,14 @@ async function main() {
   // 2. USERS
   // ═══════════════════════════════════════════════════════════════════════════
   const usersData = [
-    { id: u('USR-001'), tenant_id: t('ORG-001'), email: 'alex.morgan@3sc.com', password_hash: passwordHash, role: UserRole.ADMIN, first_name: 'Alex', last_name: 'Morgan', avatar_url: 'https://i.pravatar.cc/150?u=alex', preferences: { theme: 'light', notifications: true }, last_active_at: new Date('2026-04-16T08:14:00Z') },
-    { id: u('USR-002'), tenant_id: t('ORG-001'), email: 'priya.sharma@3sc.com', password_hash: passwordHash, role: UserRole.LEAD, first_name: 'Priya', last_name: 'Sharma', avatar_url: 'https://i.pravatar.cc/150?u=priya', preferences: {}, last_active_at: new Date('2026-04-16T07:45:00Z') },
-    { id: u('USR-003'), tenant_id: t('ORG-001'), email: 'james.okafor@3sc.com', password_hash: passwordHash, role: UserRole.AGENT, first_name: 'James', last_name: 'Okafor', avatar_url: 'https://i.pravatar.cc/150?u=james', preferences: {}, last_active_at: new Date('2026-04-16T09:01:00Z') },
-    { id: u('USR-004'), tenant_id: t('ORG-001'), email: 'sara.chen@3sc.com', password_hash: passwordHash, role: UserRole.AGENT, first_name: 'Sara', last_name: 'Chen', avatar_url: 'https://i.pravatar.cc/150?u=sara', preferences: {}, last_active_at: new Date('2026-04-15T17:22:00Z') },
-    { id: u('USR-005'), tenant_id: t('ORG-001'), email: 'michael.reyes@3sc.com', password_hash: passwordHash, role: UserRole.AGENT, first_name: 'Michael', last_name: 'Reyes', avatar_url: 'https://i.pravatar.cc/150?u=michael', preferences: {}, last_active_at: new Date('2026-04-14T13:55:00Z') },
-    { id: u('USR-006'), tenant_id: t('ORG-001'), email: 'nina.patel@3sc.com', password_hash: passwordHash, role: UserRole.LEAD, first_name: 'Nina', last_name: 'Patel', avatar_url: 'https://i.pravatar.cc/150?u=nina', preferences: {}, last_active_at: new Date('2026-04-16T06:30:00Z') },
-    { id: u('USR-007'), tenant_id: t('ORG-001'), email: 'tom.baker@3sc.com', password_hash: passwordHash, role: UserRole.AGENT, first_name: 'Tom', last_name: 'Baker', avatar_url: 'https://i.pravatar.cc/150?u=tom', preferences: {}, last_active_at: new Date('2026-01-10T11:00:00Z') },
-    { id: u('USR-008'), tenant_id: t('ORG-001'), email: 'yuki.tanaka@3sc.com', password_hash: passwordHash, role: UserRole.AGENT, first_name: 'Yuki', last_name: 'Tanaka', avatar_url: 'https://i.pravatar.cc/150?u=yuki', preferences: {}, last_active_at: new Date('2026-04-16T08:55:00Z') },
+    { id: u('USR-001'), tenant_id: t('ORG-001'), email: 'alex.morgan@3sc.com', password_hash: passwordHash, role: UserRole.ADMIN, first_name: 'Alex', last_name: 'Morgan', avatar_url: 'https://i.pravatar.cc/150?u=alex', preferences: { theme: 'light', notifications: true }, internal_sub_role: 'ADMIN', department: 'Operations', job_title: 'Platform Administrator', timezone: 'UTC', last_active_at: new Date('2026-04-16T08:14:00Z') },
+    { id: u('USR-002'), tenant_id: t('ORG-001'), email: 'priya.sharma@3sc.com', password_hash: passwordHash, role: UserRole.LEAD, first_name: 'Priya', last_name: 'Sharma', avatar_url: 'https://i.pravatar.cc/150?u=priya', preferences: {}, internal_sub_role: 'TEAM_LEAD', department: 'Delivery', job_title: 'Delivery Lead', timezone: 'Europe/London', last_active_at: new Date('2026-04-16T07:45:00Z') },
+    { id: u('USR-003'), tenant_id: t('ORG-001'), email: 'james.okafor@3sc.com', password_hash: passwordHash, role: UserRole.AGENT, first_name: 'James', last_name: 'Okafor', avatar_url: 'https://i.pravatar.cc/150?u=james', preferences: {}, internal_sub_role: 'DEVELOPER', department: 'Engineering', job_title: 'Senior Engineer', timezone: 'Europe/London', last_active_at: new Date('2026-04-16T09:01:00Z') },
+    { id: u('USR-004'), tenant_id: t('ORG-001'), email: 'sara.chen@3sc.com', password_hash: passwordHash, role: UserRole.AGENT, first_name: 'Sara', last_name: 'Chen', avatar_url: 'https://i.pravatar.cc/150?u=sara', preferences: {}, internal_sub_role: 'SUPPORT', department: 'Support', job_title: 'Support Specialist', timezone: 'Asia/Singapore', last_active_at: new Date('2026-04-15T17:22:00Z') },
+    { id: u('USR-005'), tenant_id: t('ORG-001'), email: 'michael.reyes@3sc.com', password_hash: passwordHash, role: UserRole.AGENT, first_name: 'Michael', last_name: 'Reyes', avatar_url: 'https://i.pravatar.cc/150?u=michael', preferences: {}, internal_sub_role: 'DEVELOPER', department: 'Engineering', job_title: 'Backend Engineer', timezone: 'America/New_York', last_active_at: new Date('2026-04-14T13:55:00Z') },
+    { id: u('USR-006'), tenant_id: t('ORG-001'), email: 'nina.patel@3sc.com', password_hash: passwordHash, role: UserRole.LEAD, first_name: 'Nina', last_name: 'Patel', avatar_url: 'https://i.pravatar.cc/150?u=nina', preferences: {}, internal_sub_role: 'DELIVERY', department: 'Delivery', job_title: 'Delivery Manager', timezone: 'Asia/Kolkata', last_active_at: new Date('2026-04-16T06:30:00Z') },
+    { id: u('USR-007'), tenant_id: t('ORG-001'), email: 'tom.baker@3sc.com', password_hash: passwordHash, role: UserRole.AGENT, first_name: 'Tom', last_name: 'Baker', avatar_url: 'https://i.pravatar.cc/150?u=tom', preferences: {}, internal_sub_role: 'SUPPORT', department: 'Support', job_title: 'Support Agent', timezone: 'UTC', last_active_at: new Date('2026-01-10T11:00:00Z') },
+    { id: u('USR-008'), tenant_id: t('ORG-001'), email: 'yuki.tanaka@3sc.com', password_hash: passwordHash, role: UserRole.AGENT, first_name: 'Yuki', last_name: 'Tanaka', avatar_url: 'https://i.pravatar.cc/150?u=yuki', preferences: {}, internal_sub_role: 'DELIVERY', department: 'Delivery', job_title: 'Project Coordinator', timezone: 'Asia/Tokyo', last_active_at: new Date('2026-04-16T08:55:00Z') },
     { id: u('USR-101'), tenant_id: t('ORG-002'), email: 'david.wilson@acmecorp.com', password_hash: passwordHash, role: UserRole.CLIENT_ADMIN, first_name: 'David', last_name: 'Wilson', avatar_url: 'https://i.pravatar.cc/150?u=david', preferences: {}, last_active_at: new Date('2026-04-16T07:12:00Z') },
     { id: u('USR-102'), tenant_id: t('ORG-002'), email: 'lucy.nguyen@acmecorp.com', password_hash: passwordHash, role: UserRole.CLIENT_USER, first_name: 'Lucy', last_name: 'Nguyen', avatar_url: 'https://i.pravatar.cc/150?u=lucy', preferences: {}, last_active_at: new Date('2026-04-14T15:30:00Z') },
     { id: u('USR-103'), tenant_id: t('ORG-003'), email: 'ben.harper@techwave.io', password_hash: passwordHash, role: UserRole.CLIENT_ADMIN, first_name: 'Ben', last_name: 'Harper', avatar_url: 'https://i.pravatar.cc/150?u=ben', preferences: {}, last_active_at: new Date('2026-04-15T09:45:00Z') },
@@ -1256,6 +1257,40 @@ async function main() {
     await prisma.permissionOverride.create({ data: po });
   }
   console.log(`✅ Created ${permissionOverridesData.length} permission overrides`);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // USER PROJECTS (project membership assignments)
+  // ═══════════════════════════════════════════════════════════════════════════
+  const userProjectsData: { user_id: string; project_id: string; role: ProjectRole }[] = [
+    // ORG-002 / Acme Corp — PRJ-001 (Customer Support Platform)
+    { user_id: u('USR-002'), project_id: p('PRJ-001'), role: ProjectRole.LEAD },    // Priya (LEAD) leads PRJ-001
+    { user_id: u('USR-003'), project_id: p('PRJ-001'), role: ProjectRole.MEMBER },  // James (AGENT) works on PRJ-001
+    { user_id: u('USR-008'), project_id: p('PRJ-001'), role: ProjectRole.MEMBER },  // Yuki (AGENT) works on PRJ-001
+    { user_id: u('USR-101'), project_id: p('PRJ-001'), role: ProjectRole.VIEWER },  // David (CLIENT_ADMIN) views PRJ-001
+    { user_id: u('USR-102'), project_id: p('PRJ-001'), role: ProjectRole.VIEWER },  // Lucy (CLIENT_USER) views PRJ-001
+
+    // ORG-002 / Acme Corp — PRJ-003 (Legacy System Migration)
+    { user_id: u('USR-002'), project_id: p('PRJ-003'), role: ProjectRole.MEMBER },  // Priya also on PRJ-003 (multi-project)
+    { user_id: u('USR-005'), project_id: p('PRJ-003'), role: ProjectRole.MEMBER },  // Michael (AGENT) on PRJ-003
+    { user_id: u('USR-101'), project_id: p('PRJ-003'), role: ProjectRole.VIEWER },  // David views PRJ-003
+
+    // ORG-003 / TechWave — PRJ-002 (API Integration Hub)
+    { user_id: u('USR-006'), project_id: p('PRJ-002'), role: ProjectRole.LEAD },    // Nina (LEAD) leads PRJ-002
+    { user_id: u('USR-004'), project_id: p('PRJ-002'), role: ProjectRole.MEMBER },  // Sara (AGENT) on PRJ-002
+    { user_id: u('USR-103'), project_id: p('PRJ-002'), role: ProjectRole.VIEWER },  // Ben (CLIENT_ADMIN) views PRJ-002
+
+    // ORG-003 / TechWave — PRJ-005 (Data Analytics Pipeline) — NO members (edge case test)
+
+    // ORG-001 / Internal — PRJ-006 (Internal Tooling)
+    { user_id: u('USR-001'), project_id: p('PRJ-006'), role: ProjectRole.LEAD },    // Alex (ADMIN) leads internal project
+    { user_id: u('USR-003'), project_id: p('PRJ-006'), role: ProjectRole.MEMBER },  // James also on internal project (multi-project)
+    { user_id: u('USR-005'), project_id: p('PRJ-006'), role: ProjectRole.MEMBER },  // Michael also on internal project (multi-project)
+  ];
+
+  for (const up of userProjectsData) {
+    await (prisma as any).userProject.create({ data: up });
+  }
+  console.log(`✅ Created ${userProjectsData.length} user project assignments`);
 
   console.log('🎉 Seed complete!');
 }
