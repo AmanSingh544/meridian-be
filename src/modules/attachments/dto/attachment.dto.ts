@@ -1,23 +1,29 @@
-import { IsString, IsOptional, IsObject } from 'class-validator';
+import { IsString, IsOptional, IsObject, Matches } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateAttachmentDto {
-  @ApiProperty({ example: 'saml_error_log.txt' })
-  @IsString()
-  file_name: string;
+  @ApiProperty({ type: 'string', format: 'binary', description: 'File to upload' })
+  file: any;
 
-  @ApiProperty({ example: 'text/plain' })
+  @ApiPropertyOptional({ example: 'saml_error_log.txt' })
+  @IsOptional()
   @IsString()
-  file_type: string;
+  file_name?: string;
 
-  @ApiProperty({ example: '/uploads/saml_error_log.txt' })
+  @ApiPropertyOptional({ example: 'text/plain' })
+  @IsOptional()
   @IsString()
-  file_path: string;
+  file_type?: string;
 
   @ApiPropertyOptional({ example: 'tkt_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
   @IsOptional()
   @IsString()
   ticket_id?: string;
+
+  @ApiPropertyOptional({ example: 'proj_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
+  @IsOptional()
+  @Matches(/^[a-zA-Z0-9-_]+$/)
+  project_id?: string;
 
   @ApiPropertyOptional({ example: {} })
   @IsOptional()
@@ -56,7 +62,7 @@ export class AttachmentResponseDto {
   @ApiProperty({ example: 'text/plain' })
   file_type: string;
 
-  @ApiProperty({ example: '/uploads/saml_error_log.txt' })
+  @ApiProperty({ example: 'tenant_123/general/abc.txt' })
   file_path: string;
 
   @ApiProperty({ example: 'org_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
@@ -64,6 +70,9 @@ export class AttachmentResponseDto {
 
   @ApiPropertyOptional({ example: 'tkt_01HZX8K7YV7QNSQJQ5ZQFJ9K3M' })
   ticket_id?: string;
+
+  @ApiPropertyOptional({ example: 14200 })
+  size_bytes?: number;
 
   @ApiProperty({ example: '2026-04-16T10:00:00Z' })
   created_at: string;
