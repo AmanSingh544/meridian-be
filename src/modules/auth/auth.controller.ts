@@ -9,6 +9,7 @@ import {
   Res,
   Req,
   HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { Response } from 'express';
 import {
@@ -182,6 +183,26 @@ export class AuthController {
   ) {
     await this.authService.changePassword(userId, dto.current_password, dto.new_password);
     return { message: 'Password changed successfully' };
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send a password reset link to the given email' })
+  @ApiBody({ schema: { properties: { email: { type: 'string' } } } })
+  @ApiResponse({ status: 200, description: 'Reset link sent if the account exists' })
+  async resetPassword(@Body() body: { email: string }) {
+    await this.authService.sendPasswordReset(body.email);
+    return { message: 'If an account with that email exists, a reset link has been sent.' };
+  }
+
+  @Post('confirm-reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Set a new password using a reset token' })
+  @ApiBody({ schema: { properties: { userId: { type: 'string' }, token: { type: 'string' }, newPassword: { type: 'string' } } } })
+  @ApiResponse({ status: 200, description: 'Password reset successfully' })
+  async confirmResetPassword(@Body() body: { userId: string; token: string; newPassword: string }) {
+    await this.authService.confirmPasswordReset(body.userId, body.token, body.newPassword);
+    return { message: 'Password reset successfully' };
   }
 
   @Get('session')

@@ -20,6 +20,11 @@ export class CreateRoutingRuleDto {
   @IsOptional()
   @IsInt()
   priority?: number;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  is_active?: boolean;
 }
 
 export class UpdateRoutingRuleDto {

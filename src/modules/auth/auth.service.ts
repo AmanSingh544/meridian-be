@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { getPermissionsForRole } from './permissions';
 
 export interface AuthUserResponse {
@@ -30,6 +31,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwt: JwtService,
     private config: ConfigService,
+    private email: EmailService,
   ) {}
 
   async validateUser(email: string, password: string) {
@@ -122,6 +124,47 @@ export class AuthService {
 
     const valid = await bcrypt.compare(currentPassword, user.password_hash);
     if (!valid) throw new BadRequestException('Current password is incorrect');
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { password_hash: hash } });
+  }
+
+  async sendPasswordReset(emailAddress: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { email: emailAddress } });
+    // Always return success to avoid leaking which emails exist
+    if (!user) return;
+
+    const resetSecret = this.config.get<string>('JWT_SECRET') + user.password_hash;
+    const token = this.jwt.sign(
+      { sub: user.id, email: user.email },
+      { secret: resetSecret, expiresIn: '1h' },
+    );
+
+    const frontendUrl = this.config.get<string>('FRONTEND_URL', 'https://meridian-internal-console.vercel.app');
+    const resetLink = `${frontendUrl}/reset-password?token=${token}&id=${user.id}`;
+
+    await this.email.send({
+      to: emailAddress,
+      subject: 'Reset your password',
+      html: `
+        <p>Hi ${user.first_name ?? 'there'},</p>
+        <p>We received a request to reset your password. Click the link below to set a new password:</p>
+        <p><a href="${resetLink}">Reset Password</a></p>
+        <p>This link expires in 1 hour. If you did not request this, you can safely ignore this email.</p>
+      `,
+    });
+  }
+
+  async confirmPasswordReset(userId: string, token: string, newPassword: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new BadRequestException('Invalid reset link');
+
+    const resetSecret = this.config.get<string>('JWT_SECRET') + user.password_hash;
+    try {
+      this.jwt.verify(token, { secret: resetSecret });
+    } catch {
+      throw new BadRequestException('Reset link has expired or is invalid');
+    }
 
     const hash = await bcrypt.hash(newPassword, 10);
     await this.prisma.user.update({ where: { id: userId }, data: { password_hash: hash } });
