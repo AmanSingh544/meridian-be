@@ -124,6 +124,9 @@ async function main() {
   await prisma.slaPolicy.deleteMany();
   await prisma.comment.deleteMany();
   await prisma.ticket.deleteMany();
+  await prisma.feedbackResponse.deleteMany();
+  await prisma.permissionOverride.deleteMany();
+  await prisma.document.deleteMany();
   await prisma.user.deleteMany();
   await prisma.tenant.deleteMany();
 
