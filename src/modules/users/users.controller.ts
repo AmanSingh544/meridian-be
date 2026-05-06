@@ -93,10 +93,9 @@ export class UsersController {
   }
 
   @Post('invite')
-  @ApiOperation({ summary: 'Invite / create a new user in the tenant' })
-  @ApiQuery({ name: 'tenant_id', required: true })
-  invite(@Body() dto: any, @Query('tenant_id') tenantId: string) {
-    return this.usersService.invite({ ...dto, tenant_id: tenantId });
+  @ApiOperation({ summary: 'Invite / create a new user. tenant_id must be in the request body.' })
+  invite(@Body() dto: any) {
+    return this.usersService.invite(dto);
   }
 
   @Patch(':id')

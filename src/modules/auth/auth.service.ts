@@ -35,7 +35,7 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, password: string) {
-    const user = await this.prisma.user.findUnique({
+    const user = await this.prisma.user.findFirst({
       where: { email },
       include: {
         tenant: true,
@@ -130,7 +130,7 @@ export class AuthService {
   }
 
   async sendPasswordReset(emailAddress: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { email: emailAddress } });
+    const user = await this.prisma.user.findFirst({ where: { email: emailAddress } });
     // Always return success to avoid leaking which emails exist
     if (!user) return;
 

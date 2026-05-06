@@ -1,6 +1,17 @@
+/**
+ * CSAT/NPS seed for Railway DB
+ * DATABASE_URL must point to the Railway PostgreSQL instance when running this.
+ * Run: npx ts-node --project tsconfig.json prisma/seed-csat-railway.ts
+ */
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: 'postgresql://postgres:SupwiPDeEuGHlCGKcwhqJHnamWdnpFhi@switchback.proxy.rlwy.net:45927/railway',
+    },
+  },
+});
 
 function seededUuid(prefix: string, seed: string): string {
   const input = `${prefix}:${seed}`;
@@ -24,52 +35,45 @@ function seededUuid(prefix: string, seed: string): string {
   return `${p1}-${p2.slice(0, 4)}-4${p3.slice(0, 3)}-${variant}${p4.slice(0, 3)}-${p5}${p6.slice(0, 4)}`;
 }
 
-// ── Tenant & project IDs — must match seed.ts ────────────────────────────────
+// Must match seed.ts tenant IDs
 const TENANTS = {
   ORG_002: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12', // Acme Corporation
   ORG_003: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13', // TechWave IO
   ORG_004: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a14', // Global Finance Group
 };
 
-// Project IDs derived the same way as seed.ts: seededUuid('project', key)
 const PROJECTS = {
   PRJ_001: seededUuid('project', 'PRJ-001'), // Acme — Portal Migration (active)
   PRJ_002: seededUuid('project', 'PRJ-002'), // TechWave — Onboarding Sprint (planning)
   PRJ_003: seededUuid('project', 'PRJ-003'), // Acme — Q2 Deliveries (on_hold)
   PRJ_005: seededUuid('project', 'PRJ-005'), // TechWave — API Integration (cancelled)
-  // PRJ_004 = 3SC Internal (completed) — no client CSAT
-  // PRJ_006 = 3SC Internal (active)    — no client CSAT
-  // Global Finance (ORG_004) has no projects in seed — feedback uses project_id: null
 };
 
-// ── Feedback themes weighted by sentiment ─────────────────────────────────────
 const THEMES = [
-  { theme: 'Dashboard loading slow',           sentiment: 'negative' as const, weight: 1.2 },
-  { theme: 'Need CSV/export feature',          sentiment: 'neutral'  as const, weight: 1.0 },
-  { theme: 'UI navigation confusing',          sentiment: 'negative' as const, weight: 0.9 },
-  { theme: 'Excellent support & communication',sentiment: 'positive' as const, weight: 1.1 },
-  { theme: 'Mobile app crashes',               sentiment: 'negative' as const, weight: 0.8 },
-  { theme: 'Billing page incorrect',           sentiment: 'negative' as const, weight: 0.7 },
-  { theme: 'Search results irrelevant',        sentiment: 'neutral'  as const, weight: 0.6 },
-  { theme: 'Great onboarding experience',      sentiment: 'positive' as const, weight: 0.8 },
-  { theme: 'API documentation unclear',        sentiment: 'neutral'  as const, weight: 0.7 },
-  { theme: 'Fast resolution time',             sentiment: 'positive' as const, weight: 0.9 },
-  { theme: 'Ticket response too slow',         sentiment: 'negative' as const, weight: 0.8 },
-  { theme: 'Clear project status updates',     sentiment: 'positive' as const, weight: 0.7 },
-  { theme: 'Compliance report missing fields', sentiment: 'neutral'  as const, weight: 0.6 },
-  { theme: 'Integration setup frustrating',    sentiment: 'negative' as const, weight: 0.7 },
+  { theme: 'Dashboard loading slow',            sentiment: 'negative' as const, weight: 1.2 },
+  { theme: 'Need CSV/export feature',           sentiment: 'neutral'  as const, weight: 1.0 },
+  { theme: 'UI navigation confusing',           sentiment: 'negative' as const, weight: 0.9 },
+  { theme: 'Excellent support & communication', sentiment: 'positive' as const, weight: 1.1 },
+  { theme: 'Mobile app crashes',                sentiment: 'negative' as const, weight: 0.8 },
+  { theme: 'Billing page incorrect',            sentiment: 'negative' as const, weight: 0.7 },
+  { theme: 'Search results irrelevant',         sentiment: 'neutral'  as const, weight: 0.6 },
+  { theme: 'Great onboarding experience',       sentiment: 'positive' as const, weight: 0.8 },
+  { theme: 'API documentation unclear',         sentiment: 'neutral'  as const, weight: 0.7 },
+  { theme: 'Fast resolution time',              sentiment: 'positive' as const, weight: 0.9 },
+  { theme: 'Ticket response too slow',          sentiment: 'negative' as const, weight: 0.8 },
+  { theme: 'Clear project status updates',      sentiment: 'positive' as const, weight: 0.7 },
+  { theme: 'Compliance report missing fields',  sentiment: 'neutral'  as const, weight: 0.6 },
+  { theme: 'Integration setup frustrating',     sentiment: 'negative' as const, weight: 0.7 },
 ];
 
-const MODULES   = ['Ticketing', 'Analytics', 'Billing', 'Mobile', 'API', 'Onboarding', 'Settings', 'Projects'];
-const SEGMENTS  = ['Enterprise', 'Business', 'Pro', 'Starter'];
+const MODULES  = ['Ticketing', 'Analytics', 'Billing', 'Mobile', 'API', 'Onboarding', 'Settings', 'Projects'];
+const SEGMENTS = ['Enterprise', 'Business', 'Pro', 'Starter'];
 
-// Per-tenant distribution: 200 each for Acme & TechWave, 100 for Global Finance
 const TENANT_CONFIG = [
   {
     tenantId: TENANTS.ORG_002,
     label: 'Acme',
     count: 200,
-    // Mix: ~60% linked to projects, ~40% standalone feedback
     projectPool: [PROJECTS.PRJ_001, PROJECTS.PRJ_003, null, null],
   },
   {
@@ -82,7 +86,7 @@ const TENANT_CONFIG = [
     tenantId: TENANTS.ORG_004,
     label: 'GlobalFinance',
     count: 100,
-    projectPool: [null], // no projects in seed for ORG_004
+    projectPool: [null],
   },
 ];
 
@@ -104,15 +108,13 @@ function weightedRandom<T>(items: T[], weights: number[]): T {
 }
 
 async function main() {
-  console.log('🌱 Seeding CSAT/NPS feedback responses…');
+  console.log('🌱 Seeding CSAT/NPS feedback responses → Railway DB…');
 
-  // Clear all client-tenant feedback
   await prisma.feedbackResponse.deleteMany({
     where: { tenant_id: { in: Object.values(TENANTS) } },
   });
 
   const allResponses: any[] = [];
-  let globalIdx = 0;
 
   for (const cfg of TENANT_CONFIG) {
     for (let i = 0; i < cfg.count; i++) {
@@ -137,13 +139,10 @@ async function main() {
         is_flagged: themeObj.sentiment === 'negative' && Math.random() > 0.6,
         created_at: randomDate(90),
       });
-
-      globalIdx++;
     }
     console.log(`  ✔ Queued ${cfg.count} responses for ${cfg.label} (${cfg.tenantId})`);
   }
 
-  // Insert in batches of 100
   for (let i = 0; i < allResponses.length; i += 100) {
     await prisma.feedbackResponse.createMany({ data: allResponses.slice(i, i + 100) });
   }
