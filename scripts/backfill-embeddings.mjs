@@ -16,7 +16,7 @@ const MODEL_EMBED = 'nvidia/llama-nemotron-embed-vl-1b-v2:free';
 const prisma = new PrismaClient();
 const openai = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
-  apiKey: process.env.OPENROUTER_API_KEY,
+  apiKey: process.env.AI_API_KEY,
   defaultHeaders: {
     'HTTP-Referer': 'https://3sc-platform.railway.app',
     'X-Title': '3SC Platform',
