@@ -10,6 +10,8 @@ const MODEL_EMBED = 'nvidia/llama-nemotron-embed-vl-1b-v2:free'; // embeddings
 
 // Fallback chain tried in order when primary is unavailable (503/402/429 etc.)
 const GENERATIVE_FALLBACKS = [
+  'llama-3.3-70b-versatile',
+  'llama-3.1-8b-instant',
   'meta-llama/llama-3.3-70b-instruct:free',
   'google/gemma-3-27b-it:free',
   'openai/gpt-oss-20b:free',
@@ -19,8 +21,6 @@ const GENERATIVE_FALLBACKS = [
   'google/gemma-4-31b-it:free',
   'z-ai/glm-4.5-air:free',
 ];
-
-const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
 @Injectable()
 export class AiService {
@@ -34,10 +34,12 @@ export class AiService {
     private config: ConfigService,
     private systemSettingsService: SystemSettingsService,
   ) {
-    const apiKey = this.config.get<string>('OPENROUTER_API_KEY');
+    const apiKey = this.config.get<string>('AI_API_KEY');
+    const AI_BASE_URL =  this.config.get<string>('AI_BASE_URL') ?? 'https://openrouter.ai/api/v1';
+
     if (apiKey) {
       this.client = new OpenAI({
-        baseURL: OPENROUTER_BASE,
+        baseURL: AI_BASE_URL,
         apiKey,
         defaultHeaders: {
           'HTTP-Referer': 'https://3sc-platform.railway.app',
@@ -45,7 +47,7 @@ export class AiService {
         },
       });
     } else {
-      this.logger.warn('OPENROUTER_API_KEY not set — AI features disabled');
+      this.logger.warn('AI_API_KEY not set — AI features disabled');
     }
   }
 
@@ -64,6 +66,7 @@ export class AiService {
     if (cached && cached.expiresAt > Date.now()) {
       return { client: cached.client, modelName: cached.modelName };
     }
+    const AI_BASE_URL =  this.config.get<string>('AI_BASE_URL') ?? 'https://openrouter.ai/api/v1';
 
     try {
       const settings = await this.systemSettingsService.getSettings(tenantId);
@@ -74,8 +77,8 @@ export class AiService {
 
       // Derive OpenRouter-compatible model slug from provider + model name
       let modelName: string;
-      let baseURL = OPENROUTER_BASE;
-      const apiKey = this.config.get<string>('OPENROUTER_API_KEY') ?? '';
+      let baseURL = AI_BASE_URL;
+      const apiKey = this.config.get<string>('AI_API_KEY') ?? '';
 
       if (provider === 'anthropic' && rawModel) {
         modelName = `anthropic/${rawModel}`;
@@ -89,7 +92,7 @@ export class AiService {
         return { client: this.client!, modelName: MODEL_ANALYTICAL };
       }
 
-      if (!apiKey && baseURL === OPENROUTER_BASE) {
+      if (!apiKey && baseURL === AI_BASE_URL) {
         return { client: this.client!, modelName };
       }
 
