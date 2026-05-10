@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -10,6 +10,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { OrganizationsService } from './organizations.service';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import {
   PaginatedOrganizationResponseDto,
@@ -22,6 +23,15 @@ import {
 @UseGuards(JwtAuthGuard)
 export class OrganizationsController {
   constructor(private organizationsService: OrganizationsService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Create a new organization' })
+  @ApiBody({ type: CreateOrganizationDto })
+  @ApiResponse({ status: 201, type: SingleOrganizationResponseDto })
+  @ApiResponse({ status: 409, description: 'Slug already in use' })
+  create(@Body() dto: CreateOrganizationDto) {
+    return this.organizationsService.create(dto);
+  }
 
   @Get()
   @ApiOperation({ summary: 'List organizations (paginated)' })
