@@ -22,7 +22,7 @@ const SETTINGS_DEFAULTS = {
     kb_deflection_enabled: true,
     auto_generate_kb_articles_enabled: true,
     weekly_project_summaries_enabled: true,
-    ai_provider: 'anthropic',
+    ai_provider: 'anthropic', // valid values: 'anthropic' | 'openai' | 'cerebras' | 'custom'
     ai_model_name: '',
     ai_base_url: '',
     // ai_api_key is never stored here — stored encrypted separately

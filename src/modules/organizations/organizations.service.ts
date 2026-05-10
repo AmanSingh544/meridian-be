@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
 
 @Injectable()
 export class OrganizationsService {
@@ -57,6 +58,26 @@ export class OrganizationsService {
       include: { _count: { select: { users: true, tickets: true } } },
     });
     if (!org) throw new NotFoundException('Organization not found');
+    return { data: this.formatOrg(org) };
+  }
+
+  async create(dto: CreateOrganizationDto) {
+    const existing = await this.prisma.tenant.findUnique({ where: { slug: dto.slug }, select: { id: true } });
+    if (existing) throw new ConflictException(`Slug "${dto.slug}" is already in use`);
+
+    const org = await this.prisma.tenant.create({
+      data: {
+        name: dto.name,
+        slug: dto.slug,
+        domain: dto.domain,
+        plan: dto.plan ?? 'free',
+        settings: dto.settings ?? {},
+        branding: dto.branding ?? {},
+        is_active: dto.is_active ?? true,
+      },
+      include: { _count: { select: { users: true, tickets: true } } },
+    });
+
     return { data: this.formatOrg(org) };
   }
 
