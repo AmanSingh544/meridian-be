@@ -78,6 +78,7 @@ export class UsersService {
       role: user.role,
       isActive: prefs.isActive ?? true,
       organizationId: user.tenant_id,
+      organizationDetail: user.tenant ? { name: user.tenant?.name, slug: user.tenant?.slug, plan: user.tenant?.plan } : undefined,
       permissions,
       permissionOverrides: overrides,
       lastLoginAt: user.last_active_at,
@@ -125,7 +126,10 @@ export class UsersService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { created_at: 'desc' },
-        include: USER_INCLUDE,
+        include: {
+          ...USER_INCLUDE,
+          tenant: true,
+        },
       }),
       this.prisma.user.count({ where }),
     ]);
