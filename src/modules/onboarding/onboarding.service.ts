@@ -90,6 +90,7 @@ export class OnboardingService {
         tenant_id: organization_id,
         title: t.title,
         description: t.description ?? null,
+        owner: t.owner ?? 'DELIVERY',
         status: 'pending',
         due_date: t.due_date ? new Date(t.due_date) : defaultDueDate,
       })),
@@ -208,7 +209,7 @@ export class OnboardingService {
         id: item.id,
         title: item.title,
         description: item.description,
-        owner: 'DELIVERY',
+        owner: item.owner ?? 'DELIVERY',
         dueDate: item.due_date?.toISOString?.() ?? item.due_date,
         status:
           item.status === 'done' ? 'DONE'
@@ -231,25 +232,25 @@ export class OnboardingService {
 
   private defaultTasks() {
     return [
-      // Kickoff & Setup
-      { title: 'Kickoff call with client stakeholders', description: 'Introduce the team, review goals and timeline.' },
-      { title: 'Provision client environment', description: 'Set up tenant workspace and initial configuration.' },
-      { title: 'SSO / identity provider setup', description: 'Configure SSO or invite-based access for client users.' },
-      { title: 'Access provisioning and user roles', description: 'Create accounts and assign roles for key users.' },
-      // Data Migration
-      { title: 'Data export from legacy system', description: 'Client exports data in agreed format.' },
-      { title: 'Data mapping and field validation', description: 'Map legacy fields to Meridian schema.' },
-      { title: 'Data import and integrity check', description: 'Import data and verify record counts and spot-checks.' },
-      // UAT & Training
-      { title: 'UAT environment ready', description: 'Confirm UAT environment is accessible and populated.' },
-      { title: 'User acceptance testing (UAT)', description: 'Client completes UAT against agreed test scripts.' },
-      { title: 'Agent and admin training sessions', description: 'Deliver training to end-users and administrators.' },
-      { title: 'UAT sign-off from client', description: 'Formal sign-off confirming readiness for go-live.' },
-      // Go-Live
-      { title: 'Production environment setup', description: 'Provision and configure the production tenant.' },
-      { title: 'DNS cutover', description: 'Update DNS records to point to the Meridian portal.' },
-      { title: 'Go-live communication to users', description: 'Send launch comms and login instructions to all users.' },
-      { title: 'Post-launch hypercare check', description: '48-hour check-in after go-live to address any issues.' },
+      // Kickoff & Setup (Delivery)
+      { title: 'Kickoff call with client stakeholders', description: 'Introduce the team, review goals and timeline.', owner: 'DELIVERY' },
+      { title: 'Provision client environment', description: 'Set up tenant workspace and initial configuration.', owner: 'DELIVERY' },
+      { title: 'SSO / identity provider setup', description: 'Configure SSO or invite-based access for client users.', owner: 'DELIVERY' },
+      { title: 'Access provisioning and user roles', description: 'Create accounts and assign roles for key users.', owner: 'DELIVERY' },
+      // Data Migration (Mixed)
+      { title: 'Data export from legacy system', description: 'Client exports data in agreed format.', owner: 'CLIENT' },
+      { title: 'Data mapping and field validation', description: 'Map legacy fields to Meridian schema.', owner: 'DELIVERY' },
+      { title: 'Data import and integrity check', description: 'Import data and verify record counts and spot-checks.', owner: 'DELIVERY' },
+      // UAT & Training (Mixed)
+      { title: 'UAT environment ready', description: 'Confirm UAT environment is accessible and populated.', owner: 'DELIVERY' },
+      { title: 'User acceptance testing (UAT)', description: 'Client completes UAT against agreed test scripts.', owner: 'CLIENT' },
+      { title: 'Agent and admin training sessions', description: 'Deliver training to end-users and administrators.', owner: 'DELIVERY' },
+      { title: 'UAT sign-off from client', description: 'Formal sign-off confirming readiness for go-live.', owner: 'CLIENT' },
+      // Go-Live (Delivery)
+      { title: 'Production environment setup', description: 'Provision and configure the production tenant.', owner: 'DELIVERY' },
+      { title: 'DNS cutover', description: 'Update DNS records to point to the Meridian portal.', owner: 'DELIVERY' },
+      { title: 'Go-live communication to users', description: 'Send launch comms and login instructions to all users.', owner: 'DELIVERY' },
+      { title: 'Post-launch hypercare check', description: '48-hour check-in after go-live to address any issues.', owner: 'DELIVERY' },
     ];
   }
 
@@ -270,6 +271,7 @@ export class OnboardingService {
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.status !== undefined) updateData.status = dto.status;
     if (dto.assignee_id !== undefined) updateData.assignee_id = dto.assignee_id;
+    if (dto.owner !== undefined) updateData.owner = dto.owner;
     if (dto.due_date !== undefined) updateData.due_date = dto.due_date ? new Date(dto.due_date) : null;
 
     const updated = await this.prisma.onboardingItem.update({ where: { id }, data: updateData });

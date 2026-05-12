@@ -3,13 +3,17 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiCookieAuth } from '@nes
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator';
 import { SlaService } from './sla.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @ApiTags('SLA Policies')
 @ApiCookieAuth('access_token')
 @Controller('sla-policy')
 @UseGuards(JwtAuthGuard)
 export class SlaPolicyController {
-  constructor(private slaService: SlaService) {}
+  constructor(
+    private slaService: SlaService,
+    private auditLogsService: AuditLogsService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Get the global default SLA policy for the current tenant' })
@@ -22,8 +26,16 @@ export class SlaPolicyController {
   @ApiOperation({ summary: 'Update the global default SLA policy for the current tenant' })
   @ApiBody({ schema: { type: 'object' } })
   @ApiResponse({ status: 200 })
-  upsertGlobalPolicy(@CurrentUser('tenantId') tenantId: string, @Body() dto: any) {
-    return this.slaService.upsertGlobalPolicy(tenantId, dto);
+  async upsertGlobalPolicy(@CurrentUser('tenantId') tenantId: string, @Body() dto: any, @CurrentUser('userId') userId: string) {
+    const result = await this.slaService.upsertGlobalPolicy(tenantId, dto);
+    await this.auditLogsService.create({
+      tenant_id: tenantId,
+      user_id: userId,
+      action: 'UPDATE',
+      resource_type: 'SLA_POLICY',
+      changes: dto,
+    });
+    return result;
   }
 
   @Post('check-thresholds')

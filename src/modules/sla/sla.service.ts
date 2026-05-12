@@ -229,14 +229,19 @@ export class SlaService {
   }
 
   async upsertGlobalPolicy(tenantId: string, dto: any) {
-    const { priorities, escalationRules, businessHours } = dto;
+    // dto may be camelCase (direct) or snake_case (after CamelToSnakeInterceptor)
+    const priorities = dto.priorities ?? dto.priorities;
+    const escalationRules = dto.escalationRules ?? dto.escalation_rules;
+    const businessHours = dto.businessHours ?? dto.business_hours;
 
     for (const dbPriority of PRIORITIES) {
       // Accept both the DB enum value (URGENT) and its API alias (CRITICAL) from the request body
       const apiKey = DB_TO_API_PRIORITY[dbPriority] ?? dbPriority;
       const priorityData = priorities?.[dbPriority] ?? priorities?.[apiKey];
       if (!priorityData) continue;
-      const { responseHours, resolutionHours } = priorityData;
+      // Handle both camelCase and snake_case field names from interceptor
+      const responseHours = priorityData.responseHours ?? priorityData.response_hours;
+      const resolutionHours = priorityData.resolutionHours ?? priorityData.resolution_hours;
       const p = dbPriority;
       const existing = await this.prisma.slaPolicy.findFirst({
         where: { tenant_id: tenantId, name: `global_${p}`, priority: p as any },
@@ -244,16 +249,16 @@ export class SlaService {
 
       const bh: any = {};
       if (businessHours) {
-        bh.start_time = businessHours.startTime;
-        bh.end_time = businessHours.endTime;
-        bh.pause_on_weekends = businessHours.pauseOnWeekends;
+        bh.start_time = businessHours.startTime ?? businessHours.start_time;
+        bh.end_time = businessHours.endTime ?? businessHours.end_time;
+        bh.pause_on_weekends = businessHours.pauseOnWeekends ?? businessHours.pause_on_weekends;
       }
       // Store escalation_rules inside the business_hours JSON blob
       if (escalationRules) {
         bh.escalation_rules = {
-          autoEscalateAtPercent: escalationRules.autoEscalateAtPercent,
-          notifyAdminAtPercent: escalationRules.notifyAdminAtPercent,
-          s1ReAlertIntervalMinutes: escalationRules.s1ReAlertIntervalMinutes,
+          autoEscalateAtPercent: escalationRules.autoEscalateAtPercent ?? escalationRules.auto_escalate_at_percent,
+          notifyAdminAtPercent: escalationRules.notifyAdminAtPercent ?? escalationRules.notify_admin_at_percent,
+          s1ReAlertIntervalMinutes: escalationRules.s1ReAlertIntervalMinutes ?? escalationRules.s1_re_alert_interval_minutes,
         };
       }
 
@@ -269,7 +274,7 @@ export class SlaService {
             first_response_minutes: Math.round(responseHours * 60),
             resolution_minutes: Math.round(resolutionHours * 60),
             business_hours: mergedBh,
-            ...(businessHours?.timezone ? { timezone: businessHours.timezone } : {}),
+            ...(businessHours?.timezone || businessHours?.time_zone ? { timezone: businessHours.timezone ?? businessHours.time_zone } : {}),
           },
         });
       } else {
@@ -282,7 +287,7 @@ export class SlaService {
             first_response_minutes: Math.round(responseHours * 60),
             resolution_minutes: Math.round(resolutionHours * 60),
             business_hours: bh,
-            timezone: businessHours?.timezone ?? 'UTC',
+            timezone: businessHours?.timezone ?? businessHours?.time_zone ?? 'UTC',
           },
         });
       }

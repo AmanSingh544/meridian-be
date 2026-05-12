@@ -23,6 +23,7 @@ import { PermissionGuard } from '../../shared/guards/permission.guard';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator';
 import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
 import { TicketsService } from './tickets.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { BulkUpdateTicketsDto } from './dto/bulk-update-tickets.dto';
@@ -38,7 +39,10 @@ import {
 @Controller('tickets')
 @UseGuards(JwtAuthGuard)
 export class TicketsController {
-  constructor(private ticketsService: TicketsService) {}
+  constructor(
+    private ticketsService: TicketsService,
+    private auditLogsService: AuditLogsService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List tickets (paginated, filterable)' })
@@ -160,16 +164,24 @@ export class TicketsController {
   @ApiOperation({ summary: 'Create a new ticket' })
   @ApiBody({ type: CreateTicketDto })
   @ApiResponse({ status: 201, type: TicketDto })
-  create(
+  async create(
     @Body() dto: CreateTicketDto,
     @CurrentUser('tenantId') tenantId: string,
     @CurrentUser('userId') userId: string,
   ) {
-    return this.ticketsService.create({
+    const result = await this.ticketsService.create({
       ...dto,
       tenant_id: tenantId,
       requester_id: userId,
     });
+    await this.auditLogsService.create({
+      tenant_id: tenantId,
+      user_id: userId,
+      action: 'CREATE',
+      resource_type: 'TICKET',
+      resource_id: result.data?.id,
+    });
+    return result;
   }
 
   @Patch(':id')
@@ -178,13 +190,22 @@ export class TicketsController {
   @ApiQuery({ name: 'tenant_id', required: true })
   @ApiBody({ type: UpdateTicketDto })
   @ApiResponse({ status: 200, type: TicketDto })
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdateTicketDto,
     @Query('tenant_id') tenantId: string,
     @CurrentUser('userId') userId: string,
   ) {
-    return this.ticketsService.update(id, tenantId, dto, userId);
+    const result = await this.ticketsService.update(id, tenantId, dto, userId);
+    await this.auditLogsService.create({
+      tenant_id: tenantId,
+      user_id: userId,
+      action: 'UPDATE',
+      resource_type: 'TICKET',
+      resource_id: id,
+      changes: dto,
+    });
+    return result;
   }
 
   @Post(':id/transition')
@@ -198,13 +219,22 @@ export class TicketsController {
   @ApiBody({ type: TicketTransitionDto })
   @ApiResponse({ status: 200, type: TicketDto })
   @ApiResponse({ status: 422, description: 'Invalid status transition' })
-  transition(
+  async transition(
     @Param('id') id: string,
     @Body() dto: TicketTransitionDto,
     @Query('tenant_id') tenantId: string,
     @CurrentUser('userId') userId: string,
   ) {
-    return this.ticketsService.transition(id, tenantId, dto.to_status, userId);
+    const result = await this.ticketsService.transition(id, tenantId, dto.to_status, userId);
+    await this.auditLogsService.create({
+      tenant_id: tenantId,
+      user_id: userId,
+      action: 'TRANSITION',
+      resource_type: 'TICKET',
+      resource_id: id,
+      changes: { to_status: dto.to_status },
+    });
+    return result;
   }
 
   @Post('bulk-update')
@@ -227,7 +257,15 @@ export class TicketsController {
   @ApiParam({ name: 'id' })
   @ApiQuery({ name: 'tenant_id', required: true })
   @ApiResponse({ status: 200, type: TicketDeleteResponseDto })
-  remove(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
-    return this.ticketsService.remove(id, tenantId);
+  async remove(@Param('id') id: string, @Query('tenant_id') tenantId: string, @CurrentUser('userId') userId: string) {
+    const result = await this.ticketsService.remove(id, tenantId);
+    await this.auditLogsService.create({
+      tenant_id: tenantId,
+      user_id: userId,
+      action: 'DELETE',
+      resource_type: 'TICKET',
+      resource_id: id,
+    });
+    return result;
   }
 }

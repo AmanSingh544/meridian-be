@@ -263,29 +263,55 @@ export class AiExtendedService {
     const words = query.trim().split(/\s+/).filter((w) => w.length > 2).slice(0, 5);
     if (!words.length) return { data: [] };
 
-    const where: any = {
+    const ticketWhere: any = {
       OR: [
         ...words.map((w) => ({ title: { contains: w, mode: 'insensitive' } })),
         ...words.map((w) => ({ description: { contains: w, mode: 'insensitive' } })),
       ],
     };
-    if (scope === 'kb') {
+
+    if (scope === 'article') {
       const articles = await this.prisma.kbArticle.findMany({
         where: { status: 'published', OR: words.map((w) => ({ title: { contains: w, mode: 'insensitive' as const } })) },
         orderBy: { view_count: 'desc' },
         take: 10,
         select: { id: true, title: true, excerpt: true },
       });
-      return { data: articles.map((a) => ({ type: 'kb', id: a.id, title: a.title, excerpt: a.excerpt })) };
+      return { data: articles.map((a) => ({ type: 'article', id: a.id, title: a.title, excerpt: a.excerpt, similarity: 0.85 })) };
     }
 
-    const tickets = await this.prisma.ticket.findMany({
-      where,
-      orderBy: { updated_at: 'desc' },
-      take: 10,
-      select: { id: true, title: true, status: true, priority: true },
-    });
-    return { data: tickets.map((t) => ({ type: 'ticket', id: t.id, title: t.title, status: t.status, priority: t.priority })) };
+    if (scope === 'ticket') {
+      const tickets = await this.prisma.ticket.findMany({
+        where: ticketWhere,
+        orderBy: { updated_at: 'desc' },
+        take: 10,
+        select: { id: true, title: true, status: true, priority: true },
+      });
+      return { data: tickets.map((t) => ({ type: 'ticket', id: t.id, title: t.title, excerpt: `${t.status} • ${t.priority}`, similarity: 0.85 })) };
+    }
+
+    // Combined search for "all types"
+    const [articles, tickets] = await Promise.all([
+      this.prisma.kbArticle.findMany({
+        where: { status: 'published', OR: words.map((w) => ({ title: { contains: w, mode: 'insensitive' as const } })) },
+        orderBy: { view_count: 'desc' },
+        take: 5,
+        select: { id: true, title: true, excerpt: true },
+      }),
+      this.prisma.ticket.findMany({
+        where: ticketWhere,
+        orderBy: { updated_at: 'desc' },
+        take: 5,
+        select: { id: true, title: true, status: true, priority: true },
+      }),
+    ]);
+
+    const results = [
+      ...articles.map((a) => ({ type: 'article' as const, id: a.id, title: a.title, excerpt: a.excerpt, similarity: 0.85 })),
+      ...tickets.map((t) => ({ type: 'ticket' as const, id: t.id, title: t.title, excerpt: `${t.status} • ${t.priority}`, similarity: 0.85 })),
+    ];
+
+    return { data: results };
   }
 
   async acceptSuggestion(id: string, agentId?: string) {

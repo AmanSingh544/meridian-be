@@ -355,7 +355,10 @@ export class UsersService {
 
   async getPermissions(userId: string, tenantId: string | undefined, actorRole?: string) {
     const tenantWhere = buildTenantWhere({ tenantId, role: actorRole ?? '' });
-    const user = await this.prisma.user.findFirst({ where: { id: userId, ...tenantWhere } });
+    let user = await this.prisma.user.findFirst({ where: { id: userId, ...tenantWhere } });
+    if (!user && actorRole === 'ADMIN') {
+      user = await this.prisma.user.findFirst({ where: { id: userId } });
+    }
     if (!user) throw new NotFoundException('User not found');
     return this.buildPermissionsResponse(userId, user.tenant_id, user.role);
   }
@@ -368,7 +371,10 @@ export class UsersService {
     actorRole: string,
   ) {
     const tenantWhere = buildTenantWhere({ tenantId, role: actorRole });
-    const user = await this.prisma.user.findFirst({ where: { id: userId, ...tenantWhere } });
+    let user = await this.prisma.user.findFirst({ where: { id: userId, ...tenantWhere } });
+    if (!user && actorRole === 'ADMIN') {
+      user = await this.prisma.user.findFirst({ where: { id: userId } });
+    }
     if (!user) throw new NotFoundException('User not found');
 
     const actualTenantId = user.tenant_id;
