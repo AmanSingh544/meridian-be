@@ -26,6 +26,7 @@ export class RoutingRulesService {
 
     const updateData: any = {};
     if (dto.name !== undefined) updateData.name = dto.name;
+    if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.condition !== undefined) updateData.condition = dto.condition;
     if (dto.action !== undefined) updateData.action = dto.action;
     if (dto.priority !== undefined) updateData.priority = dto.priority;

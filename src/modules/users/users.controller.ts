@@ -13,13 +13,17 @@ import { ApiTags, ApiOperation, ApiCookieAuth, ApiQuery, ApiParam } from '@nestj
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator';
 import { UsersService } from './users.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @ApiTags('Users')
 @ApiCookieAuth('access_token')
 @Controller('users')
 @UseGuards(JwtAuthGuard)
 export class UsersController {
-  constructor(private usersService: UsersService) {}
+  constructor(
+    private usersService: UsersService,
+    private auditLogsService: AuditLogsService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List users in a tenant' })
@@ -94,33 +98,60 @@ export class UsersController {
 
   @Post('invite')
   @ApiOperation({ summary: 'Invite / create a new user. tenant_id must be in the request body.' })
-  invite(@Body() dto: any) {
-    return this.usersService.invite(dto);
+  async invite(@Body() dto: any, @CurrentUser('userId') userId: string) {
+    const result = await this.usersService.invite(dto);
+    await this.auditLogsService.create({
+      tenant_id: dto.tenant_id ?? result.data?.organizationId,
+      user_id: userId,
+      action: 'CREATE',
+      resource_type: 'USER',
+      resource_id: result.data?.id,
+    });
+    return result;
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update user profile fields' })
   @ApiParam({ name: 'id' })
   @ApiQuery({ name: 'tenant_id', required: false })
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: any,
     @Query('tenant_id') tenantId: string,
     @CurrentUser('role') actorRole?: string,
+    @CurrentUser('userId') userId?: string,
   ) {
-    return this.usersService.update(id, tenantId, dto, actorRole);
+    const result = await this.usersService.update(id, tenantId, dto, actorRole);
+    await this.auditLogsService.create({
+      tenant_id: tenantId ?? result.data?.organizationId,
+      user_id: userId,
+      action: 'UPDATE',
+      resource_type: 'USER',
+      resource_id: id,
+      changes: dto,
+    });
+    return result;
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a user' })
   @ApiParam({ name: 'id' })
   @ApiQuery({ name: 'tenant_id', required: false })
-  remove(
+  async remove(
     @Param('id') id: string,
     @Query('tenant_id') tenantId: string,
     @CurrentUser('role') actorRole?: string,
+    @CurrentUser('userId') userId?: string,
   ) {
-    return this.usersService.remove(id, tenantId, actorRole);
+    const result = await this.usersService.remove(id, tenantId, actorRole);
+    await this.auditLogsService.create({
+      tenant_id: tenantId,
+      user_id: userId,
+      action: 'DELETE',
+      resource_type: 'USER',
+      resource_id: id,
+    });
+    return result;
   }
 
   // ── Permissions ──────────────────────────────────────────────────────────

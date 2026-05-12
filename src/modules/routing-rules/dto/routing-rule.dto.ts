@@ -6,6 +6,11 @@ export class CreateRoutingRuleDto {
   @IsString()
   name: string;
 
+  @ApiPropertyOptional({ example: 'Route critical tickets to senior agents' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
   @ApiPropertyOptional({ example: [{ field: 'priority', operator: 'equals', value: 'CRITICAL' }] })
   @IsOptional()
   @IsArray()
@@ -32,6 +37,11 @@ export class UpdateRoutingRuleDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @ApiPropertyOptional({ example: 'Updated description' })
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiPropertyOptional({ example: [{ field: 'priority', operator: 'equals', value: 'CRITICAL' }] })
   @IsOptional()
