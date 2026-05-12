@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "tenants" ADD COLUMN     "domain" TEXT,
+ADD COLUMN     "is_active" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP;
