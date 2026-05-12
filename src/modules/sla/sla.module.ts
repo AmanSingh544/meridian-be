@@ -5,9 +5,10 @@ import { SlaService } from './sla.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { EscalationsModule } from '../escalations/escalations.module';
 import { SystemSettingsModule } from '../system-settings/system-settings.module';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
-  imports: [NotificationsModule, EscalationsModule, SystemSettingsModule],
+  imports: [NotificationsModule, EscalationsModule, SystemSettingsModule, AuditLogsModule],
   controllers: [SlaController, SlaPolicyController],
   providers: [SlaService],
   exports: [SlaService],

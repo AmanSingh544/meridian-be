@@ -11,9 +11,10 @@ import { EmailListener } from './listeners/email.listener';
 import { NotificationListener } from './listeners/notification.listener';
 import { SocketListener } from './listeners/socket.listener';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { AuditLogsModule } from '../audit-logs/audit-logs.module';
 
 @Module({
-  imports: [SlaModule, SystemSettingsModule, NotificationsModule, EscalationsModule, AiModule, RealtimeModule],
+  imports: [SlaModule, SystemSettingsModule, NotificationsModule, EscalationsModule, AiModule, RealtimeModule, AuditLogsModule],
   providers: [TicketsService, EmailListener, NotificationListener, SocketListener, WhatsAppService],
   controllers: [TicketsController],
   exports: [TicketsService],
