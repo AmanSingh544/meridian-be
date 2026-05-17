@@ -9,6 +9,7 @@ import { SlaService } from '../sla/sla.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AiService } from '../ai/ai.service';
+import { RoutingRulesService } from '../routing-rules/routing-rules.service';
 import { eventBus } from '../../events/event-bus';
 import { TICKET_EVENTS, EventActor, TicketEventTicket } from '../../events/ticket.events';
 
@@ -96,6 +97,7 @@ export class TicketsService {
     private systemSettingsService: SystemSettingsService,
     private notificationsService: NotificationsService,
     private aiService: AiService,
+    private routingRulesService: RoutingRulesService,
   ) {}
 
   async findAll(
@@ -259,6 +261,33 @@ export class TicketsService {
         where: { id: { in: dto.attachment_ids }, tenant_id: dto.tenant_id },
         data: { ticket_id: ticket.id },
       });
+    }
+
+    // ── Auto-assign via routing rules (only when no explicit assignee given) ──
+    if (!dto.assignee_id) {
+      const routedAgentId = await this.routingRulesService.evaluate(dto.tenant_id, {
+        priority: ticket.priority,
+        category: ticket.category ?? null,
+        tags: ticket.tags ?? [],
+        title: ticket.title,
+        description: ticket.description ?? null,
+        organization_id: (ticket.metadata as any)?.organization_id ?? null,
+      }).catch(() => null); // routing is best-effort — never fail ticket creation
+
+      if (routedAgentId) {
+        const updatedWithAssignee = await this.prisma.ticket.update({
+          where: { id: ticket.id },
+          data: { assignee_id: routedAgentId },
+          include: {
+            requester: { select: USER_SELECT },
+            assignee: { select: USER_SELECT },
+            _count: { select: { comments: true, attachments: true } },
+          },
+        });
+        // Merge assignee back so the rest of the create flow uses the updated record
+        ticket.assignee_id = updatedWithAssignee.assignee_id;
+        ticket.assignee = updatedWithAssignee.assignee;
+      }
     }
 
     // ── Emit domain event ─────────────────────────────────────────────────

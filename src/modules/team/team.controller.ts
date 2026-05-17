@@ -10,7 +10,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator';
-import { TeamService } from './team.service';
+import { UsersService } from '../users/users.service';
 import {
   UpdateTeamMemberRoleDto,
   UpdatePermissionDto,
@@ -23,7 +23,7 @@ import {
 @Controller('team')
 @UseGuards(JwtAuthGuard)
 export class TeamController {
-  constructor(private teamService: TeamService) {}
+  constructor(private usersService: UsersService) {}
 
   @Get('members')
   @ApiOperation({ summary: 'List team members in a tenant' })
@@ -40,7 +40,7 @@ export class TeamController {
     @Query('search') search?: string,
     @Query('role') role?: string,
   ) {
-    return this.teamService.findMembers(tenantId, parseInt(page), parseInt(limit), search, role);
+    return this.usersService.findMembers(tenantId, parseInt(page), parseInt(limit), search, role);
   }
 
   @Patch('members/:id/role')
@@ -55,11 +55,11 @@ export class TeamController {
     @Body() dto: UpdateTeamMemberRoleDto,
     @CurrentUser('userId') actorId: string,
   ) {
-    return this.teamService.changeRole(id, tenantId, (dto as any).role, actorId);
+    return this.usersService.changeRole(id, tenantId, (dto as any).role, actorId);
   }
 
   @Patch('members/:id/permissions')
-  @ApiOperation({ summary: 'Toggle a GRANT/REVOKE permission override for a member' })
+  @ApiOperation({ summary: 'Toggle a permission override for a member' })
   @ApiParam({ name: 'id' })
   @ApiQuery({ name: 'tenant_id', required: true })
   @ApiBody({ type: UpdatePermissionDto })
@@ -70,7 +70,7 @@ export class TeamController {
     @Body() dto: UpdatePermissionDto,
     @CurrentUser('userId') actorId: string,
   ) {
-    return this.teamService.togglePermission(id, tenantId, dto as any, actorId);
+    return this.usersService.togglePermission(id, tenantId, dto as any, actorId);
   }
 
   @Delete('members/:id')
@@ -83,14 +83,14 @@ export class TeamController {
     @Query('tenant_id') tenantId: string,
     @CurrentUser('userId') actorId: string,
   ) {
-    return this.teamService.deactivateMember(id, tenantId, actorId);
+    return this.usersService.deactivateMember(id, tenantId, actorId);
   }
 
   @Get('scoring-weights')
   @ApiOperation({ summary: 'Get agent scoring weights' })
   @ApiResponse({ status: 200, type: ScoringWeightsDto })
   getScoringWeights() {
-    return this.teamService.getScoringWeights();
+    return this.usersService.getScoringWeights();
   }
 
   @Patch('scoring-weights')
@@ -98,6 +98,6 @@ export class TeamController {
   @ApiBody({ type: ScoringWeightsDto })
   @ApiResponse({ status: 200, type: ScoringWeightsDto })
   updateScoringWeights(@Body() dto: ScoringWeightsDto) {
-    return this.teamService.updateScoringWeights(dto);
+    return this.usersService.updateScoringWeights(dto);
   }
 }

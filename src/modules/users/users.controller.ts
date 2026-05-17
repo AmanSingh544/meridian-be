@@ -121,7 +121,7 @@ export class UsersController {
     @CurrentUser('role') actorRole?: string,
     @CurrentUser('userId') userId?: string,
   ) {
-    const result = await this.usersService.update(id, tenantId, dto, actorRole);
+    const result = await this.usersService.update(id, tenantId, dto, actorRole, userId);
     await this.auditLogsService.create({
       tenant_id: tenantId ?? result.data?.organizationId,
       user_id: userId,
@@ -143,7 +143,7 @@ export class UsersController {
     @CurrentUser('role') actorRole?: string,
     @CurrentUser('userId') userId?: string,
   ) {
-    const result = await this.usersService.remove(id, tenantId, actorRole);
+    const result = await this.usersService.remove(id, tenantId, actorRole, userId);
     await this.auditLogsService.create({
       tenant_id: tenantId,
       user_id: userId,
@@ -152,6 +152,51 @@ export class UsersController {
       resource_id: id,
     });
     return result;
+  }
+
+  // ── Team Member Management (merged from Team module) ─────────────────────
+
+  @Get('members')
+  @ApiOperation({ summary: 'List team members in a tenant (lightweight)' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'page', required: false })
+  @ApiQuery({ name: 'limit', required: false })
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'role', required: false })
+  findMembers(
+    @Query('tenant_id') tenantId: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '25',
+    @Query('search') search?: string,
+    @Query('role') role?: string,
+  ) {
+    return this.usersService.findMembers(tenantId, parseInt(page, 10), parseInt(limit, 10), search, role);
+  }
+
+  @Patch(':id/role')
+  @ApiOperation({ summary: 'Change a user role (clears permission overrides)' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  changeRole(
+    @Param('id') id: string,
+    @Query('tenant_id') tenantId: string,
+    @Body() dto: { role: string },
+    @CurrentUser('userId') actorId: string,
+  ) {
+    return this.usersService.changeRole(id, tenantId, dto.role, actorId);
+  }
+
+  @Patch(':id/permissions/toggle')
+  @ApiOperation({ summary: 'Toggle a permission override on/off for a user' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'tenant_id', required: true })
+  togglePermission(
+    @Param('id') id: string,
+    @Query('tenant_id') tenantId: string,
+    @Body() dto: { permission: string; enabled?: boolean },
+    @CurrentUser('userId') actorId: string,
+  ) {
+    return this.usersService.togglePermission(id, tenantId, dto, actorId);
   }
 
   // ── Permissions ──────────────────────────────────────────────────────────

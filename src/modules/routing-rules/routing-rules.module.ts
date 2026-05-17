@@ -7,5 +7,6 @@ import { AuditLogsModule } from '../audit-logs/audit-logs.module';
   imports: [AuditLogsModule],
   controllers: [RoutingRulesController],
   providers: [RoutingRulesService],
+  exports: [RoutingRulesService],
 })
 export class RoutingRulesModule {}

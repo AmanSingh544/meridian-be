@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsBoolean } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsInt } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateDeliveryFeatureDto {
@@ -35,6 +35,11 @@ export class CreateDeliveryFeatureDto {
   @IsOptional()
   @IsBoolean()
   is_public?: boolean;
+
+  @ApiPropertyOptional({ example: 5 })
+  @IsOptional()
+  @IsInt()
+  upvotes?: number;
 }
 
 export class UpdateDeliveryFeatureDto {
@@ -67,6 +72,11 @@ export class UpdateDeliveryFeatureDto {
   @IsOptional()
   @IsBoolean()
   is_public?: boolean;
+
+  @ApiPropertyOptional({ example: 5 })
+  @IsOptional()
+  @IsInt()
+  upvotes?: number;
 }
 
 export class DeliveryFeatureResponseDto {
@@ -93,6 +103,9 @@ export class DeliveryFeatureResponseDto {
 
   @ApiProperty({ example: true })
   is_public: boolean;
+
+  @ApiProperty({ example: 5 })
+  upvotes: number;
 
   @ApiProperty({ example: '2026-04-16T10:00:00Z' })
   created_at: string;

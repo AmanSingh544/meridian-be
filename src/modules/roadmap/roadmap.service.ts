@@ -17,6 +17,7 @@ export class RoadmapService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { votes: 'desc' },
+        include: { deliveryItem: true },
       }),
       this.prisma.roadmapFeature.count({ where }),
     ]);
@@ -24,20 +25,47 @@ export class RoadmapService {
   }
 
   async findOne(id: string, tenantId: string) {
-    const feature = await this.prisma.roadmapFeature.findFirst({ where: { id, tenant_id: tenantId } });
+    const feature = await this.prisma.roadmapFeature.findFirst({
+      where: { id, tenant_id: tenantId },
+      include: { deliveryItem: true },
+    });
     if (!feature) throw new NotFoundException('Feature not found');
     return { data: feature };
   }
 
   async create(tenantId: string, dto: any, createdBy: string) {
-    const feature = await this.prisma.roadmapFeature.create({
-      data: { ...dto, tenant_id: tenantId, created_by: createdBy, status: dto.status ?? 'planned', votes: 0 },
+    // Create the delivery item first (source of truth) so the internal team sees it
+    const deliveryItem = await this.prisma.deliveryItem.create({
+      data: {
+        tenant_id: tenantId,
+        title: dto.title,
+        description: dto.description,
+        status: 'BACKLOG',
+        is_public: true,
+      },
     });
+
+    // Create the linked roadmap feature (customer-facing view)
+    const feature = await this.prisma.roadmapFeature.create({
+      data: {
+        tenant_id: tenantId,
+        delivery_item_id: deliveryItem.id,
+        title: dto.title,
+        description: dto.description,
+        status: dto.status ?? 'planned',
+        votes: 0,
+        created_by: createdBy,
+      },
+    });
+
     return { data: feature };
   }
 
   async update(id: string, tenantId: string, dto: any) {
-    const feature = await this.prisma.roadmapFeature.findFirst({ where: { id, tenant_id: tenantId } });
+    const feature = await this.prisma.roadmapFeature.findFirst({
+      where: { id, tenant_id: tenantId },
+      include: { deliveryItem: true },
+    });
     if (!feature) throw new NotFoundException('Feature not found');
 
     const updateData: any = {};
@@ -46,6 +74,20 @@ export class RoadmapService {
     if (dto.status !== undefined) updateData.status = dto.status;
 
     const updated = await this.prisma.roadmapFeature.update({ where: { id }, data: updateData });
+
+    // Sync title/description back to the source delivery item
+    if (feature.deliveryItem) {
+      const deliveryUpdate: any = {};
+      if (dto.title !== undefined) deliveryUpdate.title = dto.title;
+      if (dto.description !== undefined) deliveryUpdate.description = dto.description;
+      if (Object.keys(deliveryUpdate).length > 0) {
+        await this.prisma.deliveryItem.update({
+          where: { id: feature.deliveryItem.id },
+          data: deliveryUpdate,
+        });
+      }
+    }
+
     return { data: updated };
   }
 

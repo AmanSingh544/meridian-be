@@ -17,27 +17,55 @@ export class DeliveryService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy: { created_at: 'desc' },
+        include: { roadmapFeature: true },
       }),
       this.prisma.deliveryItem.count({ where }),
     ]);
-    return { data, page, page_size: limit, total, total_pages: Math.ceil(total / limit) };
+
+    const dataWithVotes = data.map(item => ({
+      ...item,
+      upvotes: item.roadmapFeature?.votes ?? item.upvotes,
+    }));
+
+    return { data: dataWithVotes, page, page_size: limit, total, total_pages: Math.ceil(total / limit) };
   }
 
   async findOne(id: string, tenantId: string) {
-    const item = await this.prisma.deliveryItem.findFirst({ where: { id, tenant_id: tenantId } });
+    const item = await this.prisma.deliveryItem.findFirst({
+      where: { id, tenant_id: tenantId },
+      include: { roadmapFeature: true },
+    });
     if (!item) throw new NotFoundException('Delivery item not found');
-    return { data: item };
+
+    return { data: { ...item, upvotes: item.roadmapFeature?.votes ?? item.upvotes } };
   }
 
   async create(tenantId: string, dto: any) {
     const item = await this.prisma.deliveryItem.create({
       data: { ...dto, tenant_id: tenantId },
     });
+
+    if (item.is_public) {
+      await this.prisma.roadmapFeature.create({
+        data: {
+          tenant_id: tenantId,
+          delivery_item_id: item.id,
+          title: item.title,
+          description: item.description,
+          status: 'planned',
+          votes: 0,
+        },
+      });
+    }
+
     return { data: item };
   }
 
   async update(id: string, tenantId: string, dto: any) {
-    const item = await this.prisma.deliveryItem.findFirst({ where: { id, tenant_id: tenantId } });
+    const item = await this.prisma.deliveryItem.findFirst({
+      where: { id, tenant_id: tenantId },
+      include: { roadmapFeature: true },
+    });
     if (!item) throw new NotFoundException('Delivery item not found');
 
     const updateData: any = {};
@@ -48,10 +76,44 @@ export class DeliveryService {
     if (dto.category !== undefined) updateData.category = dto.category;
     if (dto.quarter !== undefined) updateData.quarter = dto.quarter;
     if (dto.is_public !== undefined) updateData.is_public = dto.is_public;
+    if (dto.upvotes !== undefined) updateData.upvotes = dto.upvotes;
     if (dto.assignee_id !== undefined) updateData.assignee_id = dto.assignee_id;
     if (dto.due_date !== undefined) updateData.due_date = dto.due_date ? new Date(dto.due_date) : null;
 
     const updated = await this.prisma.deliveryItem.update({ where: { id }, data: updateData });
+
+    const wasPublic = item.is_public;
+    const isPublic = dto.is_public !== undefined ? dto.is_public : wasPublic;
+    const hasRoadmapFeature = !!item.roadmapFeature;
+
+    if (!wasPublic && isPublic && !hasRoadmapFeature) {
+      // Became public — create linked roadmap feature
+      await this.prisma.roadmapFeature.create({
+        data: {
+          tenant_id: tenantId,
+          delivery_item_id: id,
+          title: updated.title,
+          description: updated.description,
+          status: 'planned',
+          votes: 0,
+        },
+      });
+    } else if (wasPublic && !isPublic && hasRoadmapFeature) {
+      // Became private — delete linked roadmap feature
+      await this.prisma.roadmapFeature.delete({ where: { id: item.roadmapFeature.id } });
+    } else if (hasRoadmapFeature && isPublic) {
+      // Sync title/description changes to roadmap
+      const roadmapUpdate: any = {};
+      if (dto.title !== undefined) roadmapUpdate.title = dto.title;
+      if (dto.description !== undefined) roadmapUpdate.description = dto.description;
+      if (Object.keys(roadmapUpdate).length > 0) {
+        await this.prisma.roadmapFeature.update({
+          where: { id: item.roadmapFeature.id },
+          data: roadmapUpdate,
+        });
+      }
+    }
+
     return { data: updated };
   }
 

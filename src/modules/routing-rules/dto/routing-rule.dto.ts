@@ -1,5 +1,6 @@
 import { IsString, IsOptional, IsInt, IsBoolean, IsObject, IsArray } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 
 export class CreateRoutingRuleDto {
   @ApiProperty({ example: 'High Priority Route' })
@@ -14,6 +15,7 @@ export class CreateRoutingRuleDto {
   @ApiPropertyOptional({ example: [{ field: 'priority', operator: 'equals', value: 'CRITICAL' }] })
   @IsOptional()
   @IsArray()
+  @Transform(({ obj }) => obj.condition)
   condition?: Record<string, any>[];
 
   @ApiPropertyOptional({ example: {} })
@@ -46,6 +48,7 @@ export class UpdateRoutingRuleDto {
   @ApiPropertyOptional({ example: [{ field: 'priority', operator: 'equals', value: 'CRITICAL' }] })
   @IsOptional()
   @IsArray()
+  @Transform(({ obj }) => obj.condition)
   condition?: Record<string, any>[];
 
   @ApiPropertyOptional({ example: {} })
