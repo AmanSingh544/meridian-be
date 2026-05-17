@@ -252,7 +252,7 @@ export class UsersService {
     return { data: this.buildUserShape(user) };
   }
 
-  async update(id: string, tenantId: string | undefined, dto: any, actorRole?: string) {
+  async update(id: string, tenantId: string | undefined, dto: any, actorRole?: string, actorId?: string) {
     const tenantWhere = buildTenantWhere({ tenantId, role: actorRole ?? '' });
     const user = await this.prisma.user.findFirst({ where: { id, ...tenantWhere } });
     if (!user) throw new NotFoundException('User not found');
@@ -261,7 +261,13 @@ export class UsersService {
     if (dto.first_name !== undefined) updateData.first_name = dto.first_name;
     if (dto.last_name !== undefined) updateData.last_name = dto.last_name;
     if (dto.avatar_url !== undefined) updateData.avatar_url = dto.avatar_url;
-    if (dto.role !== undefined) updateData.role = dto.role;
+    if (dto.role !== undefined) {
+      updateData.role = dto.role;
+      // Clear permission overrides when role changes (keeps them in sync with new role defaults)
+      if (dto.role !== user.role) {
+        await this.prisma.permissionOverride.deleteMany({ where: { user_id: id, tenant_id: user.tenant_id } });
+      }
+    }
 
     // Real columns — write directly
     if (dto.internal_sub_role !== undefined) updateData.internal_sub_role = dto.internal_sub_role;
@@ -320,10 +326,11 @@ export class UsersService {
     return { data: this.buildUserShape(updated) };
   }
 
-  async remove(id: string, tenantId: string | undefined, actorRole?: string) {
+  async remove(id: string, tenantId: string | undefined, actorRole?: string, actorId?: string) {
     const tenantWhere = buildTenantWhere({ tenantId, role: actorRole ?? '' });
     const user = await this.prisma.user.findFirst({ where: { id, ...tenantWhere } });
     if (!user) throw new NotFoundException('User not found');
+    if (actorId && id === actorId) throw new ForbiddenException('Cannot delete yourself');
     await this.prisma.user.delete({ where: { id } });
     return { success: true, message: 'User deleted successfully' };
   }
@@ -503,7 +510,129 @@ export class UsersService {
     };
   }
 
+  // ── Team Member Management (merged from TeamService) ─────────────────────
+
+  private formatMember(user: any) {
+    const overrides = user.permission_overrides ?? [];
+    const permissions = getPermissionsForRole(
+      user.role,
+      overrides.map((o: any) => ({ permission: o.permission, type: o.type })),
+    );
+    return {
+      id: user.id,
+      email: user.email,
+      display_name: [user.first_name, user.last_name].filter(Boolean).join(' ') || user.email,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      role: user.role,
+      avatar_url: user.avatar_url,
+      is_active: user.is_active ?? true,
+      tenant_id: user.tenant_id,
+      permissions,
+      last_login_at: user.last_active_at,
+      created_at: user.created_at,
+    };
+  }
+
+  async findMembers(tenantId: string, page: number, limit: number, search?: string, role?: string) {
+    const where: any = { tenant_id: tenantId };
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { first_name: { contains: search, mode: 'insensitive' } },
+        { last_name: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+    if (role) where.role = role;
+
+    const [data, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { created_at: 'desc' },
+        include: { permission_overrides: true },
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    return {
+      data: data.map(this.formatMember.bind(this)),
+      page,
+      page_size: limit,
+      total,
+      total_pages: Math.ceil(total / limit),
+    };
+  }
+
+  async changeRole(memberId: string, tenantId: string, role: string, actorId: string) {
+    const member = await this.prisma.user.findFirst({ where: { id: memberId, tenant_id: tenantId } });
+    if (!member) throw new NotFoundException('Member not found');
+    if (memberId === actorId) throw new ForbiddenException('Cannot change own role');
+
+    await this.prisma.permissionOverride.deleteMany({ where: { user_id: memberId, tenant_id: tenantId } });
+
+    const updated = await this.prisma.user.update({
+      where: { id: memberId },
+      data: { role: role as any },
+      include: { permission_overrides: true },
+    });
+
+    return { data: this.formatMember(updated) };
+  }
+
+  async togglePermission(
+    memberId: string,
+    tenantId: string,
+    dto: { permission: string; type?: 'GRANT' | 'REVOKE'; enabled?: boolean },
+    actorId: string,
+  ) {
+    const member = await this.prisma.user.findFirst({ where: { id: memberId, tenant_id: tenantId } });
+    if (!member) throw new NotFoundException('Member not found');
+
+    const existing = await this.prisma.permissionOverride.findFirst({
+      where: { user_id: memberId, tenant_id: tenantId, permission: dto.permission },
+    });
+
+    if (existing) {
+      await this.prisma.permissionOverride.delete({ where: { id: existing.id } });
+    } else {
+      await this.prisma.permissionOverride.create({
+        data: {
+          user_id: memberId,
+          tenant_id: tenantId,
+          permission: dto.permission,
+          type: (dto.type ?? 'GRANT') as any,
+          granted_by: actorId,
+        },
+      });
+    }
+
+    const updatedUser = await this.prisma.user.findFirst({
+      where: { id: memberId },
+      include: { permission_overrides: true },
+    });
+    return { data: this.formatMember(updatedUser) };
+  }
+
+  async deactivateMember(memberId: string, tenantId: string, actorId: string) {
+    const member = await this.prisma.user.findFirst({ where: { id: memberId, tenant_id: tenantId } });
+    if (!member) throw new NotFoundException('Member not found');
+    if (memberId === actorId) throw new ForbiddenException('Cannot deactivate self');
+
+    await this.prisma.user.delete({ where: { id: memberId } });
+    return { success: true, message: 'Member deactivated' };
+  }
+
   // ── Admin password reset ──────────────────────────────────────────────────
+
+  async getScoringWeights() {
+    return { data: { w_skill: 0.5, w_workload: 0.35, w_avail: 0.15 } };
+  }
+
+  async updateScoringWeights(dto: any) {
+    return { data: dto };
+  }
 
   async adminResetPassword(targetId: string, actorId: string, tenantId: string | undefined, actorRole?: string) {
     if (targetId === actorId) throw new ForbiddenException('CANNOT_RESET_SELF');

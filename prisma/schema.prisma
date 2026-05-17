@@ -445,12 +445,14 @@ model DeliveryItem {
   category    String?
   quarter     String?
   is_public   Boolean  @default(true)
+  upvotes     Int      @default(0)
   assignee_id String?  @db.Uuid
   due_date    DateTime? @db.Timestamptz(6)
   created_at  DateTime @default(now()) @db.Timestamptz(6)
   updated_at  DateTime @updatedAt @db.Timestamptz(6)
 
-  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant         Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  roadmapFeature RoadmapFeature?
 
   @@map("delivery_items")
 }
@@ -479,17 +481,19 @@ model OnboardingItem {
 // ROADMAP
 // ─────────────────────────────────────────────
 model RoadmapFeature {
-  id          String   @id @default(uuid()) @db.Uuid
-  tenant_id   String   @db.Uuid
-  title       String
-  description String?
-  status      String   @default("planned")
-  votes       Int      @default(0)
-  created_by  String?  @db.Uuid
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+  id               String   @id @default(uuid()) @db.Uuid
+  tenant_id        String   @db.Uuid
+  delivery_item_id String?  @unique @db.Uuid
+  title            String
+  description      String?
+  status           String   @default("planned")
+  votes            Int      @default(0)
+  created_by       String?  @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @updatedAt @db.Timestamptz(6)
 
-  tenant      Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant         Tenant         @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  deliveryItem   DeliveryItem?  @relation(fields: [delivery_item_id], references: [id], onDelete: Cascade)
 
   @@map("roadmap_features")
 }
@@ -520,6 +524,7 @@ model RoutingRule {
   id          String   @id @default(uuid()) @db.Uuid
   tenant_id   String   @db.Uuid
   name        String
+  description String?
   condition   Json
   action      Json
   priority    Int      @default(0)

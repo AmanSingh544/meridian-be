@@ -237,7 +237,11 @@ export class SlaService {
     for (const dbPriority of PRIORITIES) {
       // Accept both the DB enum value (URGENT) and its API alias (CRITICAL) from the request body
       const apiKey = DB_TO_API_PRIORITY[dbPriority] ?? dbPriority;
-      const priorityData = priorities?.[dbPriority] ?? priorities?.[apiKey];
+      const priorityData =
+        priorities?.[dbPriority] ??
+        priorities?.[apiKey] ??
+        priorities?.[dbPriority.toLowerCase()] ??
+        priorities?.[apiKey.toLowerCase()];
       if (!priorityData) continue;
       // Handle both camelCase and snake_case field names from interceptor
       const responseHours = priorityData.responseHours ?? priorityData.response_hours;
