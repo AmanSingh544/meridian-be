@@ -64,6 +64,9 @@ export class AuthController {
   }
 
 
+  private static readonly INTERNAL_ROLES = new Set(['AGENT', 'LEAD', 'ADMIN']);
+  private static readonly CUSTOMER_ROLES = new Set(['CLIENT_USER', 'CLIENT_ADMIN']);
+
   @Post('login')
   @ApiOperation({
     summary: 'Authenticate a user and start a session',
@@ -77,12 +80,28 @@ export class AuthController {
     type: LoginResponseDto,
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 403, description: 'Role not permitted for this portal' })
   async login(
     @Body() dto: LoginDto,
     @Req() req: any,
     @Res({ passthrough: true }) res: Response,
   ) {
     const user = await this.authService.validateUser(dto.email, dto.password);
+
+    const portal = req.headers?.['x-portal-type'];
+    const isInternal = portal === 'internal';
+    const allowedRoles = isInternal
+      ? AuthController.INTERNAL_ROLES
+      : AuthController.CUSTOMER_ROLES;
+
+    if (!allowedRoles.has(user.role)) {
+      throw new UnauthorizedException(
+        isInternal
+          ? 'This account does not have access to the internal console.'
+          : 'This account does not have access to the customer portal.',
+      );
+    }
+
     const result = await this.authService.login(user);
 
     const accessMaxAge = 15 * 60 * 1000; // 15 minutes
