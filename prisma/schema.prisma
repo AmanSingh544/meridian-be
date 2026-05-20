@@ -47,6 +47,8 @@ model Tenant {
   ai_conversations AiConversation[]
   documents    Document[]
   feedback_responses FeedbackResponse[]
+  survey_tokens      SurveyToken[]
+  api_keys    ProjectApiKey[]
 
   @@map("tenants")
 }
@@ -86,6 +88,7 @@ model User {
   kb_articles          KbArticle[]
   documents            Document[]
   user_projects        UserProject[]
+  api_keys             ProjectApiKey[]
 
   @@unique([tenant_id, email])
   @@index([tenant_id, email])
@@ -400,9 +403,10 @@ model Project {
   created_at  DateTime @default(now()) @db.Timestamptz(6)
   updated_at  DateTime @updatedAt @db.Timestamptz(6)
 
-  tenant        Tenant        @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  tenant        Tenant          @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
   tickets       Ticket[]
   user_projects UserProject[]
+  api_keys      ProjectApiKey[]
 
   @@map("projects")
 }
@@ -648,25 +652,125 @@ model AiMessage {
 }
 
 // ─────────────────────────────────────────────
+// SURVEY TOKENS (email-based invite links)
+// ─────────────────────────────────────────────
+model SurveyToken {
+  id             String    @id @default(uuid()) @db.Uuid
+  tenant_id      String    @db.Uuid
+  customer_email String
+  customer_name  String?
+  company_name   String?
+  created_by     String    @db.Uuid
+  expires_at     DateTime  @db.Timestamptz(6)
+  used_at        DateTime? @db.Timestamptz(6)
+  response_id    String?   @db.Uuid
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  tenant         Tenant    @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+
+  @@index([tenant_id, created_at])
+  @@index([customer_email])
+  @@map("survey_tokens")
+}
+
+// ─────────────────────────────────────────────
 // FEEDBACK RESPONSES (CSAT / NPS)
 // ─────────────────────────────────────────────
 model FeedbackResponse {
-  id                String   @id @default(uuid()) @db.Uuid
-  tenant_id         String   @db.Uuid
-  project_id        String?  @db.Uuid
-  csat_score        Int?     // 1–5
-  nps_score         Int?     // 0–10
-  sentiment         String   @default("neutral") // positive | neutral | negative
-  theme             String?
-  module            String?
-  customer_segment  String?
-  is_flagged        Boolean  @default(false)
-  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  id                     String   @id @default(uuid()) @db.Uuid
+  tenant_id              String   @db.Uuid
+  project_id             String?  @db.Uuid
+  survey_token_id        String?  @db.Uuid
 
-  tenant            Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  // Respondent identity
+  customer_email         String?
+  customer_name          String?
+
+  // Step 1: Modules used
+  selected_modules       String[]
+
+  // Step 2: Overall satisfaction
+  csat_score             Int?     // overall_csat 1–5
+  overall_value          Int?     // 1–5
+  expectation_met        String?  // exceeded|met|partially|below
+  overall_comment        String?
+
+  // Step 3: Product & features
+  ease_of_use            Int?
+  feature_coverage       Int?
+  ai_ml_quality          Int?
+  customization          Int?
+  performance            Int?
+  ibp_accuracy           Int?
+  itms_quality           Int?
+  wms_quality            Int?
+  carbonx_quality        Int?
+  top_feature            String?
+  product_comment        String?
+
+  // Step 4: Implementation
+  impl_smoothness        Int?
+  training_quality       Int?
+  impl_timeline          String?
+  time_to_value          String?
+  integration_quality    Int?
+  impl_comment           String?
+
+  // Step 5: Support & service
+  support_responsiveness Int?
+  support_quality        Int?
+  account_mgmt           Int?
+  proactive_comm         Int?
+  preferred_channel      String?
+  support_comment        String?
+
+  // Step 6: Business impact & NPS
+  visibility_improvement Int?
+  kpi_improvement        String?
+  roi_satisfaction       Int?
+  renew_intent           String?  // definitely|likely|unsure|unlikely|switching
+  nps_score              Int?     // 0–10
+  recommend_reason       String?
+  open_feedback          String?
+
+  // Derived
+  sentiment              String   @default("neutral") // positive|neutral|negative
+  theme                  String?
+  is_flagged             Boolean  @default(false)
+
+  created_at             DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant                 Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 
   @@index([tenant_id, created_at])
   @@index([tenant_id, sentiment])
   @@index([tenant_id, theme])
+  @@index([tenant_id, nps_score])
   @@map("feedback_responses")
+}
+
+// ─────────────────────────────────────────────
+// PROJECT API KEYS
+// ─────────────────────────────────────────────
+model ProjectApiKey {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenant_id    String    @db.Uuid
+  project_id   String?   @db.Uuid
+  name         String
+  key_hash     String    @unique
+  key_prefix   String
+  created_by   String    @db.Uuid
+  last_used_at DateTime? @db.Timestamptz(6)
+  expires_at   DateTime? @db.Timestamptz(6)
+  is_active    Boolean   @default(true)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+
+  tenant   Tenant   @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
+  project  Project? @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  creator  User     @relation(fields: [created_by], references: [id])
+
+  @@index([tenant_id])
+  @@index([key_hash])
+  @@index([tenant_id, project_id])
+  @@map("project_api_keys")
 }

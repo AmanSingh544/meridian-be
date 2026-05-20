@@ -9,13 +9,13 @@ export interface TenantContext {
  * Returns a Prisma `where` fragment for tenant scoping.
  * Spread into any Prisma where object: { ...buildTenantWhere(ctx), status: 'active' }
  *
- * tenantId present (any role) → scoped to that tenant
- * tenantId absent + ADMIN     → global (no filter)
- * tenantId absent + non-ADMIN → throws 400
+ * ADMIN (any tenantId)    → global (no filter) — ADMIN can access all tenants
+ * non-ADMIN + tenantId    → scoped to that tenant
+ * non-ADMIN, no tenantId  → throws 400
  */
 export function buildTenantWhere(ctx: TenantContext): Record<string, any> {
-  if (ctx.tenantId) return { tenant_id: ctx.tenantId };
   if (ctx.role === 'ADMIN') return {};
+  if (ctx.tenantId) return { tenant_id: ctx.tenantId };
   throw new BadRequestException('tenant_id is required');
 }
 

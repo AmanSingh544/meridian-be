@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
-import { buildTenantWhere } from '../../shared/utils/tenant-scope';
+import { buildTenantWhere, TenantContext } from '../../shared/utils/tenant-scope';
 
 @Injectable()
 export class ProjectsService {
@@ -40,8 +40,10 @@ export class ProjectsService {
     return map;
   }
 
-  async findAll(tenantId: string, page: number, limit: number, search?: string, status?: string) {
-    const where: any = { tenant_id: tenantId };
+  async findAll(ctx: TenantContext, page: number, limit: number, search?: string, status?: string) {
+    const where: any = { ...buildTenantWhere(ctx) };
+    // Allow ADMIN to scope by tenant when explicitly provided as a filter
+    if (ctx.role === 'ADMIN' && ctx.tenantId) where.tenant_id = ctx.tenantId;
     if (status) where.status = status;
     if (search) {
       where.OR = [
@@ -77,8 +79,8 @@ export class ProjectsService {
     return { data, page, page_size: limit, total, total_pages: Math.ceil(total / limit) };
   }
 
-  async findOne(id: string, tenantId: string) {
-    const project = await this.prisma.project.findFirst({ where: { id, tenant_id: tenantId } });
+  async findOne(id: string, ctx: TenantContext) {
+    const project = await this.prisma.project.findFirst({ where: { id, ...buildTenantWhere(ctx) } });
     if (!project) throw new NotFoundException('Project not found');
 
     const counts = await this.liveTicketCounts([id]);
@@ -97,20 +99,22 @@ export class ProjectsService {
     };
   }
 
-  async create(tenantId: string, dto: any) {
+  async create(ctx: TenantContext, dto: any) {
     const { scope, target_date, metadata, ...rest } = dto;
+    // For project creation, tenant_id must be explicit — ADMIN must specify which client
+    if (!ctx.tenantId) throw new BadRequestException('tenant_id is required to create a project');
     const project = await this.prisma.project.create({
       data: {
         ...rest,
-        tenant_id: tenantId,
+        tenant_id: ctx.tenantId,
         metadata: { ...(metadata ?? {}), ...(scope !== undefined ? { scope } : {}), ...(target_date !== undefined ? { targetDate: target_date } : {}) },
       },
     });
     return { data: { ...project, scope: (project.metadata as any)?.scope, targetDate: (project.metadata as any)?.targetDate } };
   }
 
-  async update(id: string, tenantId: string, dto: any) {
-    const project = await this.prisma.project.findFirst({ where: { id, tenant_id: tenantId } });
+  async update(id: string, ctx: TenantContext, dto: any) {
+    const project = await this.prisma.project.findFirst({ where: { id, ...buildTenantWhere(ctx) } });
     if (!project) throw new NotFoundException('Project not found');
 
     const updateData: any = {};
@@ -131,8 +135,8 @@ export class ProjectsService {
     return { data: updated };
   }
 
-  async remove(id: string, tenantId: string) {
-    const project = await this.prisma.project.findFirst({ where: { id, tenant_id: tenantId } });
+  async remove(id: string, ctx: TenantContext) {
+    const project = await this.prisma.project.findFirst({ where: { id, ...buildTenantWhere(ctx) } });
     if (!project) throw new NotFoundException('Project not found');
     await this.prisma.project.delete({ where: { id } });
     return { success: true, message: 'Project deleted' };
@@ -140,8 +144,8 @@ export class ProjectsService {
 
   // ── Project Members ───────────────────────────────────────────────────────
 
-  async getMembers(projectId: string, tenantId: string) {
-    const project = await this.prisma.project.findFirst({ where: { id: projectId, tenant_id: tenantId } });
+  async getMembers(projectId: string, ctx: TenantContext) {
+    const project = await this.prisma.project.findFirst({ where: { id: projectId, ...buildTenantWhere(ctx) } });
     if (!project) throw new NotFoundException('Project not found');
 
     const members = await (this.prisma as any).userProject.findMany({
@@ -172,13 +176,15 @@ export class ProjectsService {
     };
   }
 
-  async addMember(projectId: string, tenantId: string, dto: { user_id: string; role?: string }) {
-    const project = await this.prisma.project.findFirst({ where: { id: projectId, tenant_id: tenantId } });
+  async addMember(projectId: string, ctx: TenantContext, dto: { user_id: string; role?: string }) {
+    const project = await this.prisma.project.findFirst({ where: { id: projectId, ...buildTenantWhere(ctx) } });
     if (!project) throw new NotFoundException('Project not found');
 
-    // Validate the user belongs to the same tenant
-    const user = await this.prisma.user.findFirst({ where: { id: dto.user_id, tenant_id: tenantId } });
-    if (!user) throw new BadRequestException('User does not belong to this tenant');
+    // Validate the user exists; ADMINs can assign cross-tenant users (e.g. internal agents)
+    const userWhere: any = { id: dto.user_id };
+    if (ctx.role !== 'ADMIN') userWhere.tenant_id = project.tenant_id;
+    const user = await this.prisma.user.findFirst({ where: userWhere });
+    if (!user) throw new BadRequestException('User not found');
 
     const existing = await (this.prisma as any).userProject.findFirst({
       where: { user_id: dto.user_id, project_id: projectId },
@@ -193,11 +199,11 @@ export class ProjectsService {
       },
     });
 
-    return this.getMembers(projectId, tenantId);
+    return this.getMembers(projectId, ctx);
   }
 
-  async removeMember(projectId: string, userId: string, tenantId: string) {
-    const project = await this.prisma.project.findFirst({ where: { id: projectId, tenant_id: tenantId } });
+  async removeMember(projectId: string, userId: string, ctx: TenantContext) {
+    const project = await this.prisma.project.findFirst({ where: { id: projectId, ...buildTenantWhere(ctx) } });
     if (!project) throw new NotFoundException('Project not found');
 
     const membership = await (this.prisma as any).userProject.findFirst({
@@ -206,6 +212,6 @@ export class ProjectsService {
     if (!membership) throw new NotFoundException('User is not a member of this project');
 
     await (this.prisma as any).userProject.delete({ where: { id: membership.id } });
-    return this.getMembers(projectId, tenantId);
+    return this.getMembers(projectId, ctx);
   }
 }

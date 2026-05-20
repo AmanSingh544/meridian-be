@@ -5,6 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { buildTenantWhere, TenantContext } from '../../shared/utils/tenant-scope';
 import { SlaService } from '../sla/sla.service';
 import { SystemSettingsService } from '../system-settings/system-settings.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -101,7 +102,7 @@ export class TicketsService {
   ) {}
 
   async findAll(
-    tenantId: string,
+    ctx: TenantContext,
     filters: {
       status?: string | string[];
       priority?: string | string[];
@@ -130,7 +131,12 @@ export class TicketsService {
     const rawSortOrder = filters.sort_order ?? filters.sortOrder;
     const sortOrder = rawSortOrder === 'asc' ? 'asc' : 'desc';
 
-    const where: any = { tenant_id: tenantId };
+    const where: any = { ...buildTenantWhere(ctx) };
+
+    // Allow ADMIN to explicitly scope by tenant when provided as a filter
+    if (ctx.role === 'ADMIN' && ctx.tenantId) {
+      where.tenant_id = ctx.tenantId;
+    }
 
     if (filters.status) {
       const statuses = (Array.isArray(filters.status)

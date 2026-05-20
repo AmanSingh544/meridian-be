@@ -19,6 +19,7 @@ import {
   ApiCookieAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
+import { ApiKeyOrJwtGuard } from '../../shared/guards/api-key-or-jwt.guard';
 import { PermissionGuard } from '../../shared/guards/permission.guard';
 import { CurrentUser } from '../../shared/decorators/current-user.decorator';
 import { RequirePermission } from '../../shared/decorators/require-permission.decorator';
@@ -45,8 +46,9 @@ export class TicketsController {
   ) {}
 
   @Get()
+  @UseGuards(ApiKeyOrJwtGuard)
   @ApiOperation({ summary: 'List tickets (paginated, filterable)' })
-  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'tenant_id', required: false })
   @ApiQuery({ name: 'status', required: false, description: 'Repeatable. e.g. ?status=OPEN&status=IN_PROGRESS' })
   @ApiQuery({ name: 'priority', required: false })
   @ApiQuery({ name: 'category', required: false })
@@ -61,7 +63,8 @@ export class TicketsController {
   @ApiQuery({ name: 'sort_order', required: false, enum: ['asc', 'desc'] })
   @ApiResponse({ status: 200, type: PaginatedTicketResponseDto })
   findAll(
-    @Query('tenant_id') tenantId: string,
+    @CurrentUser() user: { userId: string; role: string; tenantId?: string },
+    @Query('tenant_id') tenantId?: string,
     @Query('status') status?: string | string[],
     @Query('priority') priority?: string | string[],
     @Query('category') category?: string,
@@ -81,34 +84,38 @@ export class TicketsController {
     @Query('sort_order') sort_order?: 'asc' | 'desc',
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ) {
-    return this.ticketsService.findAll(tenantId, {
-      status,
-      priority,
-      category,
-      assignee_id,
-      assignedTo,
-      unassigned: unassigned === 'true',
-      requester_id,
-      project_id: projectId,
-      search,
-      date_from,
-      date_to,
-      page: parseInt(page, 10),
-      limit: limit ? parseInt(limit, 10) : undefined,
-      page_size: page_size ? parseInt(page_size, 10) : undefined,
-      sort_by,
-      sortBy,
-      sort_order,
-      sortOrder,
-    });
+    return this.ticketsService.findAll(
+      { tenantId: tenantId || user.tenantId || undefined, role: user.role },
+      {
+        status,
+        priority,
+        category,
+        assignee_id,
+        assignedTo,
+        unassigned: unassigned === 'true',
+        requester_id,
+        project_id: projectId,
+        search,
+        date_from,
+        date_to,
+        page: parseInt(page, 10),
+        limit: limit ? parseInt(limit, 10) : undefined,
+        page_size: page_size ? parseInt(page_size, 10) : undefined,
+        sort_by,
+        sortBy,
+        sort_order,
+        sortOrder,
+      },
+    );
   }
 
   @Get('list')
   @ApiOperation({ summary: 'List tickets — alias for GET /tickets' })
-  @ApiQuery({ name: 'tenant_id', required: true })
+  @ApiQuery({ name: 'tenant_id', required: false })
   @ApiResponse({ status: 200, type: PaginatedTicketResponseDto })
   findAllList(
-    @Query('tenant_id') tenantId: string,
+    @CurrentUser() user: { userId: string; role: string; tenantId?: string },
+    @Query('tenant_id') tenantId?: string,
     @Query('status') status?: string | string[],
     @Query('priority') priority?: string | string[],
     @Query('category') category?: string,
@@ -128,26 +135,29 @@ export class TicketsController {
     @Query('sort_order') sort_order?: 'asc' | 'desc',
     @Query('sortOrder') sortOrder?: 'asc' | 'desc',
   ) {
-    return this.ticketsService.findAll(tenantId, {
-      status,
-      priority,
-      category,
-      assignee_id,
-      assignedTo,
-      unassigned: unassigned === 'true',
-      requester_id,
-      project_id: projectId,
-      search,
-      date_from,
-      date_to,
-      page: parseInt(page, 10),
-      limit: limit ? parseInt(limit, 10) : undefined,
-      page_size: page_size ? parseInt(page_size, 10) : undefined,
-      sort_by,
-      sortBy,
-      sort_order,
-      sortOrder,
-    });
+    return this.ticketsService.findAll(
+      { tenantId: tenantId || user.tenantId || undefined, role: user.role },
+      {
+        status,
+        priority,
+        category,
+        assignee_id,
+        assignedTo,
+        unassigned: unassigned === 'true',
+        requester_id,
+        project_id: projectId,
+        search,
+        date_from,
+        date_to,
+        page: parseInt(page, 10),
+        limit: limit ? parseInt(limit, 10) : undefined,
+        page_size: page_size ? parseInt(page_size, 10) : undefined,
+        sort_by,
+        sortBy,
+        sort_order,
+        sortOrder,
+      },
+    );
   }
 
   @Get(':id')
@@ -156,11 +166,16 @@ export class TicketsController {
   @ApiQuery({ name: 'tenant_id', required: true })
   @ApiResponse({ status: 200, type: TicketDto })
   @ApiResponse({ status: 404, description: 'Ticket not found' })
-  findOne(@Param('id') id: string, @Query('tenant_id') tenantId: string) {
-    return this.ticketsService.findOne(id, tenantId);
+  findOne(
+    @CurrentUser() user: { userId: string; role: string; tenantId?: string },
+    @Param('id') id: string,
+    @Query('tenant_id') tenantId?: string,
+  ) {
+    return this.ticketsService.findOne(id, tenantId || user.tenantId || '');
   }
 
   @Post()
+  @UseGuards(ApiKeyOrJwtGuard)
   @ApiOperation({ summary: 'Create a new ticket' })
   @ApiBody({ type: CreateTicketDto })
   @ApiResponse({ status: 201, type: TicketDto })

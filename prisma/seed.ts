@@ -125,6 +125,7 @@ async function main() {
   await prisma.comment.deleteMany();
   await prisma.ticket.deleteMany();
   await prisma.feedbackResponse.deleteMany();
+  await (prisma as any).surveyToken.deleteMany();
   await prisma.permissionOverride.deleteMany();
   await prisma.document.deleteMany();
   await prisma.user.deleteMany();

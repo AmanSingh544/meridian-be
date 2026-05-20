@@ -156,6 +156,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'DOCUMENT_UPLOAD',
     'DOCUMENT_EDIT',
     'DOCUMENT_DELETE',
+    'PROJECT_API_KEY_MANAGE',
   ],
 };
 

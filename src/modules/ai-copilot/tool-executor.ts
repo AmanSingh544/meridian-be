@@ -257,7 +257,7 @@ export class ToolExecutor {
         return this.ticketsService.findOne(ticket.id, tenantId);
       }
       case 'search_tickets': {
-        return this.ticketsService.findAll(tenantId, {
+        return this.ticketsService.findAll({ tenantId, role: ctx.role }, {
           search: args.query ? String(args.query) : undefined,
           status: args.status ? String(args.status) : undefined,
           priority: args.priority ? String(args.priority) : undefined,
@@ -266,14 +266,14 @@ export class ToolExecutor {
         });
       }
       case 'get_my_tickets': {
-        return this.ticketsService.findAll(tenantId, {
+        return this.ticketsService.findAll({ tenantId, role: ctx.role }, {
           requester_id: ctx.userId,
           status: args.status ? String(args.status) : undefined,
           limit: typeof args.limit === 'number' ? args.limit : 10,
         });
       }
       case 'get_recent_tickets': {
-        return this.ticketsService.findAll(tenantId, {
+        return this.ticketsService.findAll({ tenantId, role: ctx.role }, {
           sort_by: 'updated_at',
           sort_order: 'desc',
           limit: typeof args.limit === 'number' ? args.limit : 10,

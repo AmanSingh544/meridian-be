@@ -191,16 +191,13 @@ export class UsersService {
     });
     if (existing) throw new ConflictException('EMAIL_ALREADY_EXISTS');
 
-    // Validate project_ids all belong to the same tenant
+    // Filter project_ids to only those belonging to the target tenant
     if (dto.project_ids?.length) {
       const projects = await this.prisma.project.findMany({
-        where: { id: { in: dto.project_ids } },
-        select: { id: true, tenant_id: true },
+        where: { id: { in: dto.project_ids }, tenant_id: dto.tenant_id },
+        select: { id: true },
       });
-      const mismatch = projects.find((p) => p.tenant_id !== dto.tenant_id);
-      if (mismatch || projects.length !== dto.project_ids.length) {
-        throw new BadRequestException('All project_ids must belong to the specified tenant');
-      }
+      dto.project_ids = projects.map((p) => p.id);
     }
 
     const tempPassword = 'Password123!'; // Email will activate when domain is purchased
@@ -294,14 +291,13 @@ export class UsersService {
     // Handle project_ids update if provided
     if (dto.project_ids !== undefined) {
       if (dto.project_ids.length) {
+        const projectWhere: any = { id: { in: dto.project_ids } };
+        if (actorRole !== 'ADMIN') projectWhere.tenant_id = user.tenant_id;
         const projects = await this.prisma.project.findMany({
-          where: { id: { in: dto.project_ids } },
-          select: { id: true, tenant_id: true },
+          where: projectWhere,
+          select: { id: true },
         });
-        const mismatch = projects.find((p) => p.tenant_id !== user.tenant_id);
-        if (mismatch || projects.length !== dto.project_ids.length) {
-          throw new BadRequestException('All project_ids must belong to the user\'s tenant');
-        }
+        dto.project_ids = projects.map((p) => p.id);
       }
       // Replace project assignments
       await (this.prisma as any).userProject.deleteMany({ where: { user_id: id } });
